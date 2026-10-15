@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -18,9 +18,12 @@
 
 #include "FITS-ModuleApi.h"
 
+#include <boost/property_tree/ptree.hpp>
+
 #include <condition_variable>
 #include <cstdint>
 #include <list>
+#include <map>
 #include <mutex>
 #include <string>
 
@@ -43,6 +46,7 @@ namespace FIERY
                     // public "buffer" variables.
                     uint8_t *   p_buffer;
                     uint64_t    buffer_size_in_bytes;
+
 
                     // public constructors and destructor.
                     IMAGE
@@ -98,9 +102,9 @@ namespace FIERY
                     // public "accessor" methods.
                     void   clear()
                     {
-                        job_id.erase();
-                        image_id.erase();
-                        colorant.erase();
+                        job_id.clear();
+                        image_id.clear();
+                        colorant.clear();
                         p_buffer             = nullptr;
                         buffer_size_in_bytes = 0;
                         bits_per_pixel       = 0;
@@ -125,6 +129,7 @@ namespace FIERY
                     bool ImageGet(const std::string & job_id, const std::string & image_id, IMAGE & image);
 
                     // public JOB "management" methods.
+                    bool Abort(void);
                     bool JobCancel(const std::string & job_id);
 
 
@@ -138,6 +143,36 @@ namespace FIERY
                     std::mutex                m_image_mutex;
                     std::condition_variable   m_image_signal;
                 };
+
+                namespace PROPERTIES
+                {
+                    class MANAGER
+                    {
+                        public:
+                        // public static IMAGE_PROPERTIES "management" methods.
+                        static bool ImagePropertiesCreate(const std::string & job_id, const std::string & image_id, const boost::property_tree::ptree & json_object_image_properties);
+                        static bool ImagePropertiesDelete(const std::string & job_id, const std::string & image_id);
+                        static bool ImagePropertiesGet(const std::string & job_id, const std::string & image_id, boost::property_tree::ptree & json_object_image_properties);
+
+                        // public JOB "management" methods.
+                        static bool Abort(void);
+                        static bool JobCancel(const std::string & job_id);
+
+
+                        private:
+                        // private constructors and destructor.
+                        MANAGER();
+                        virtual ~MANAGER();
+
+                        // private typedefs.
+                        typedef std::map<std::string, boost::property_tree::ptree>   IMAGE_PROPERTIES_MAP;
+                        typedef std::map<std::string, IMAGE_PROPERTIES_MAP>          JOB_IMAGE_PROPERTIES_MAP_MAP;
+
+                        // private static "management" variables.
+                        static JOB_IMAGE_PROPERTIES_MAP_MAP   m_job_image_properties_map_map;
+                        static std::mutex                     m_job_image_properties_map_map_mutex;
+                    };
+                }
             }
         }
     }

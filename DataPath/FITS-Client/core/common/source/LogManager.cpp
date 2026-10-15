@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -20,6 +20,8 @@
 #undef GOOGLE_PREDICT_TRUE
 #endif
 #define GLOG_NO_ABBREVIATED_SEVERITIES
+#define GLOG_USE_GLOG_EXPORT
+
 #include <glog/logging.h>
 
 using namespace FIERY::FITS::CORE::LOG;
@@ -30,11 +32,11 @@ using namespace FIERY::FITS::CORE::LOG;
 /**********************************************************************************************************************************************************************************/
 std::mutex                                       MANAGER::m_directory_cleanup_mutex;
 std::chrono::high_resolution_clock::time_point   MANAGER::m_directory_cleanup_time_point_previous;
-std::string                                      MANAGER::m_filename_base_error;
-std::string                                      MANAGER::m_filename_base_fatal;
-std::string                                      MANAGER::m_filename_base_info;
-std::string                                      MANAGER::m_filename_base_warning;
-std::string                                      MANAGER::m_filepath_directory;
+std::wstring                                     MANAGER::m_filename_base_error;
+std::wstring                                     MANAGER::m_filename_base_fatal;
+std::wstring                                     MANAGER::m_filename_base_info;
+std::wstring                                     MANAGER::m_filename_base_warning;
+std::wstring                                     MANAGER::m_filepath_directory;
 FIERY::FITS::MODULE::PROPERTIES::LOG             MANAGER::m_log_properties;
 
 bool   MANAGER::m_initialized = false;
@@ -74,10 +76,10 @@ void MANAGER::DirectoryCleanup(void)
     }
 }
 
-void MANAGER::DirectoryCleanupFiles(const std::string & filename_base)
+void MANAGER::DirectoryCleanupFiles(const std::wstring & filename_base)
 {
     // check the arguments.
-    if (!filename_base.empty() && (filename_base.c_str() != ""))
+    if (!filename_base.empty())
     {
         // if valid, check to see if "clean-up" is enabled.
         if (m_log_properties.files_max > 0)
@@ -89,7 +91,7 @@ void MANAGER::DirectoryCleanupFiles(const std::string & filename_base)
             for (auto & file : boost::filesystem::recursive_directory_iterator(m_filepath_directory))
             {
                 // check to see if the "file" contains the given "base" name.
-                if (file.path().string().find(filename_base) != std::string::npos)
+                if (file.path().wstring().find(filename_base) != std::wstring::npos)
                 {
                     // if so, attempt to "add" the "file" to the "set".
                     file_map[boost::filesystem::last_write_time(file.path())] = file.path();
@@ -108,7 +110,7 @@ void MANAGER::DirectoryCleanupFiles(const std::string & filename_base)
     }
 }
 
-bool MANAGER::Initialize(const std::string & application, const std::string & filename_base, const boost::filesystem::path & path_base, const FIERY::FITS::MODULE::PROPERTIES::LOG & log_properties)
+bool MANAGER::Initialize(const std::string & application, const std::wstring & filename_base, const FIERY::FITS::MODULE::PROPERTIES::LOG & log_properties)
 {
     // check to see if we need to "initialize" LOGGING.
     if (!m_initialized)
@@ -118,15 +120,15 @@ bool MANAGER::Initialize(const std::string & application, const std::string & fi
         boost::filesystem::path   path_filename_base_info;
         boost::filesystem::path   path_filename_base_warning;
 
-        boost::filesystem::path   path_directory = path_base / DIRECTORY_LOG;
+        boost::filesystem::path   path_directory = DIRECTORY_LOG;
 
 
         // if so, initialize the "management" variables.
-        m_filename_base_error   = filename_base + ".ERROR.";
-	    m_filename_base_fatal   = filename_base + ".FATAL.";
-	    m_filename_base_info    = filename_base + ".INFO.";
-	    m_filename_base_warning = filename_base + ".WARNING.";
-        m_filepath_directory    = path_directory.string();
+        m_filename_base_error   = filename_base + L".ERROR.";
+	    m_filename_base_fatal   = filename_base + L".FATAL.";
+	    m_filename_base_info    = filename_base + L".INFO.";
+	    m_filename_base_warning = filename_base + L".WARNING.";
+        m_filepath_directory    = path_directory.wstring();
         m_log_properties        = log_properties;
 
         // check to see if the LOGGING "configuration" is valid -- if not, update the "management" variables.
@@ -142,9 +144,9 @@ bool MANAGER::Initialize(const std::string & application, const std::string & fi
         path_filename_base_warning = path_directory / m_filename_base_warning;
         
         // check to see if we need to "create" the LOGGING "directory" -- if so, do it.
-        if (!(boost::filesystem::exists(path_directory.string())))
+        if (!(boost::filesystem::exists(path_directory.wstring())))
         {
-            boost::filesystem::create_directory(path_directory.string());
+            boost::filesystem::create_directory(path_directory.wstring());
         }
 
         // initialize the LOGGING "flags" variables.

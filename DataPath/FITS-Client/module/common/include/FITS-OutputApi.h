@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -17,6 +17,8 @@
 #include "FITS-ModuleApi.h"
 
 #include "ImageManager.h"
+
+#include <boost/property_tree/ptree.hpp>
 
 #include <cstdint>
 
@@ -100,13 +102,17 @@ namespace FIERY
             {
                 public:
                 // public pure virtual "management" methods.
-                virtual bool Initialize(const FIERY::FITS::MODULE::LOGGER & logger, FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT & output_properties) = 0;
+                virtual bool Initialize(const FIERY::FITS::MODULE::LOGGER & logger, const std::list<std::string> & colorant_list, FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT & output_properties) = 0;
+                virtual bool Uninitialize(void) = 0;
 
                 // public pure virtual IMAGE "management" methods.
                 virtual bool ImageProcess(const FIERY::FITS::MODULE::PROPERTIES::IMAGE & image_properties, const std::vector<uint8_t> & image_data_input, std::vector<uint8_t> & image_data_output) = 0;
-                virtual bool ImageTransfer(const FIERY::FITS::MODULE::IMAGE::IMAGE & image, const std::string & job_name) = 0;
-                virtual bool ImageTransferAccumulated(const std::list<FIERY::FITS::MODULE::IMAGE::IMAGE> & image_list, const std::string & job_name) = 0;
+                virtual bool ImageTransfer(const FIERY::FITS::MODULE::IMAGE::IMAGE & image, const std::string & job_name, const boost::property_tree::ptree & json_object_settings) = 0;
+                virtual bool ImageTransferAccumulated(const std::list<FIERY::FITS::MODULE::IMAGE::IMAGE> & image_list, const std::list<std::string> & colorant_list_valid, const std::string & job_name, const boost::property_tree::ptree & json_object_settings) = 0;
                 virtual bool ImageWaitForEjected(const std::string & job_id, const std::string & image_id) = 0;
+
+                // public pure virtual JOB "management" methods.
+                virtual bool Abort(void) = 0;
             };
         }
     }

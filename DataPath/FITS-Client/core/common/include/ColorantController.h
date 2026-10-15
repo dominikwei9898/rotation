@@ -1,14 +1,10 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  (c) Copyright 1990-2023  Electronics for Imaging, Inc. ("EFI").     All Rights Reserved                                                                                       */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
-/*  EFI products contain certain trade secrets and confidential and proprietary information of EFI.  Use, reproduction, disclosure, distribution by any means  are prohibited,    */
-/*  except pursuant to a written license from EFI. Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works based on this        */
-/*  software are prohibited, except pursuant to a written license from EFI. Use of copyright notice does not imply publication or disclosure.                                     */
-/*                                                                                                                                                                                */
-/*  Restricted Rights Legend:                                                                                                                                                     */
-/*  Use, duplication, or disclosure by the Government is subject to restrictions as set forth in subparagraph (c)(1)(ii) of The Rights in Technical Data and Computer Software    */
-/*  clause in DFARS 252.227-7013 or subparagraphs (c)(1) and (2) of the Commercial Computer Software -- Restricted Rights at 48 CFR 52.227-19, as applicable.                     */
+/*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
+/*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
+/*  based on this software are prohibited, except pursuant to a written license from Fiery. Use of copyright notice does not imply publication or disclosure.                     */
 /*                                                                                                                                                                                */
 /**********************************************************************************************************************************************************************************/
 #ifndef __COLORANT_CONTROLLER_H__
@@ -44,7 +40,7 @@ namespace FIERY
                 {
                     public:
                     // public constructors and destructor.
-                    CONTROLLER(const std::string & ip, const uint16_t & port, const std::string & colorant, boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN> & p_module_plug_in);
+                    CONTROLLER(const std::string & ip, const uint16_t & port, const std::string & ip_local_bind, const std::string & colorant, boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN> & p_module_plug_in);
                     virtual ~CONTROLLER();
 
                     // public "management" methods.
@@ -67,6 +63,7 @@ namespace FIERY
                     bool                                              m_connected;
                     bool                                              m_enabled;
                     std::string                                       m_ip;
+                    std::string                                       m_ip_local_bind;
                     boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN>   m_p_module_plug_in;
                     uint32_t                                          m_port;
                     FIERY::FITS::CORE::SOCKET::CONTROLLER *           m_socket_controller;

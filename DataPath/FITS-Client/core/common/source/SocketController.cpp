@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -33,7 +33,7 @@ CONTROLLER::~CONTROLLER()
     Stop();
 }
 
-bool CONTROLLER::Connect(const std::string & ip, const uint32_t & port, std::string & error)
+bool CONTROLLER::Connect(const std::string & ip, const uint32_t & port, const std::string & ip_local_bind, std::string & error)
 {
     boost::asio::ip::tcp::resolver::query   query(ip, std::to_string(port));
     boost::asio::ip::tcp::resolver          resolver(m_io_context);
@@ -48,6 +48,21 @@ bool CONTROLLER::Connect(const std::string & ip, const uint32_t & port, std::str
     {
         // attempt to "connect" the CONTROLLER.
         boost::asio::connect(m_socket, resolver.resolve(query));
+
+        // check to see if the "local bind" IP is "valid".
+        if (!ip_local_bind.empty())
+        {
+            boost::asio::ip::tcp::endpoint   endpoint_local(boost::asio::ip::make_address(ip_local_bind), 0);
+            boost::system::error_code        error_code;
+
+            m_socket.bind(endpoint_local, error_code);
+
+            // check to see if everything was successful -- if not, attempt to "log" the "error" and return immediately.
+            if (error_code)
+            {
+                LOG::MANAGER::LogError("CONTROLLER::Connect[" + m_name + "]: FAILED (Error = <" + error_code.message() + ">)");
+            }
+        }
 
         // The worker thread will run the m_io_context
         m_io_context.run();
@@ -122,19 +137,19 @@ void CONTROLLER::ReadAsync(std::vector<uint8_t>& rec_buf, size_t size_to_receive
 
                 if (error_code == boost::asio::error::operation_aborted || error_code == boost::asio::error::connection_reset || error_code == boost::asio::error::shut_down)
                 {
-                    callback(FIERY::FITS::CORE::SOCKET::CONTROLLER_ERROR::CONNECTION_ERROR);
+                    callback(CONTROLLER_ERROR::CONNECTION_ERROR);
                     return;
                 }
                 else
                 {
-                    callback(FIERY::FITS::CORE::SOCKET::CONTROLLER_ERROR::READ_ERROR);
+                    callback(CONTROLLER_ERROR::READ_ERROR);
                     return;
                 }
             }
         }
         else
         {
-            callback(FIERY::FITS::CORE::SOCKET::CONTROLLER_ERROR::SOCKET_CLOSED);
+            callback(CONTROLLER_ERROR::SOCKET_CLOSED);
             return;
         }
 

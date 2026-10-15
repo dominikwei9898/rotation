@@ -1,7 +1,7 @@
 "use strict";
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -230,7 +230,9 @@ class FieryPathSession {
                     reject(err);
                 }
                 else if (!body.token) {
-                    reject('login token is invalid');
+                    const errorMsg = `login token is invalid (HTTP status: ${res && res.statusCode ? res.statusCode : 'unknown'})`;
+                    this.logError(errorMsg);
+                    reject(errorMsg);
                 }
                 else {
                     this.logInfo('Valid login token received');
@@ -245,6 +247,7 @@ class FieryPathSession {
             this.ws = new ws_1.default(this.m_ws_url, { headers: { 'Content-Type': 'application/json' } });
             this.ws.on('open', () => {
                 this.logInfo('Connected ws');
+                this.setupKeepAlive();
                 resolve('connected ws');
             });
             this.ws.on('error', (err) => {
@@ -273,7 +276,7 @@ class FieryPathSession {
     }
     // Sends the mandatory "connect" message to the server once a websocket connection is created
     connectWebSocket() {
-        this.sendMessage('connect', { token: this.m_token });
+        return this.sendMessage('connect', { token: this.m_token });
     }
     // Logout from the server
     logout() {
@@ -342,13 +345,20 @@ class FieryPathSession {
             }
             else if (this.m_defer_list_map.has(message.id)) {
                 const defer = this.m_defer_list_map.get(message.id);
+                this.m_defer_list_map.delete(message.id);
                 if (message.hasOwnProperty('error')) {
-                    defer.reject(message.error);
+                    const errObj = message.error;
+                    const err = new Error(typeof (errObj === null || errObj === void 0 ? void 0 : errObj.message) === 'string' ? errObj.message : 'JSON-RPC error');
+                    err.code = errObj === null || errObj === void 0 ? void 0 : errObj.code;
+                    err.data = errObj === null || errObj === void 0 ? void 0 : errObj.data;
+                    defer.reject(err);
+                    return;
                 }
                 if (message.hasOwnProperty('result')) {
                     defer.resolve(message.result);
-                    this.m_defer_list_map.delete(message.id);
+                    return;
                 }
+                defer.reject(new Error('Invalid JSON-RPC response: missing result/error'));
             }
         }
         catch (e) {
@@ -384,6 +394,12 @@ class FieryPathSession {
             this.logInfo(message);
             process.exit(0);
         });
+    }
+    setupKeepAlive() {
+        setInterval(() => {
+            if (this.ws && this.ws.readyState === ws_1.default.OPEN)
+                this.ws.ping();
+        }, 30000);
     }
 }
 exports.FieryPathSession = FieryPathSession;

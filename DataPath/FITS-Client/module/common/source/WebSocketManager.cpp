@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -32,24 +32,28 @@ using namespace FIERY::FITS::MODULE::WEB_SOCKET;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                local variables                                                                                 */
 /**********************************************************************************************************************************************************************************/
-const std::string   MANAGER::JSON_PROPERTY_IMAGE_ID   = "imageId";
-const std::string   MANAGER::JSON_PROPERTY_INKS       = "inks";
-const std::string   MANAGER::JSON_PROPERTY_JOB_ID     = "jobId";
-const std::string   MANAGER::JSON_PROPERTY_JOB_NAME   = "jobName";
-const std::string   MANAGER::JSON_PROPERTY_TYPE       = "type";
-const uint32_t      MANAGER::SLEEP_IN_SECONDS_CONNECT = 5;
-const std::string   MANAGER::TYPE_CANCEL              = "cancel";
-const std::string   MANAGER::TYPE_CONNECT             = "connect";
-const std::string   MANAGER::TYPE_PRINT               = "print";
-const std::string   MANAGER::TYPE_PRINTED             = "printed";
-const std::string   MANAGER::WEB_SOCKET_VERSION       = "FITS-Client.WebSocket/1.0";
+const std::string   MANAGER::JSON_PROPERTY_IMAGE_ID         = "imageId";
+const std::string   MANAGER::JSON_PROPERTY_IMAGE_PROPERTIES = "imageProperties";
+const std::string   MANAGER::JSON_PROPERTY_INKS             = "inks";
+const std::string   MANAGER::JSON_PROPERTY_JOB_ID           = "jobId";
+const std::string   MANAGER::JSON_PROPERTY_JOB_NAME         = "jobName";
+const std::string   MANAGER::JSON_PROPERTY_SETTINGS         = "settings";
+const std::string   MANAGER::JSON_PROPERTY_TYPE             = "type";
+const uint32_t      MANAGER::SLEEP_IN_SECONDS_CONNECT       = 5;
+const std::string   MANAGER::TYPE_ABORT                     = "abort";
+const std::string   MANAGER::TYPE_CLEAN_UP                  = "cleanup";
+const std::string   MANAGER::TYPE_CONNECT                   = "connect";
+const std::string   MANAGER::TYPE_IMAGE_PROPERTIES          = "imageProperties";
+const std::string   MANAGER::TYPE_PRINT                     = "print";
+const std::string   MANAGER::TYPE_PRINTED                   = "printed";
+const std::string   MANAGER::WEB_SOCKET_VERSION             = "FITS-Client.WebSocket/1.0";
 
 
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
-MANAGER::MANAGER() : m_connected(false), m_fiery_path_server(), m_io_context(), m_thread(), m_thread_enabled(false), m_p_module_mgr(nullptr), m_p_web_socket(nullptr),
-            m_read_buffer(), m_started(false)
+MANAGER::MANAGER() : m_connected(false), m_fiery_path_client(), m_io_context(), m_thread(), m_thread_enabled(false), m_p_module_mgr(nullptr), m_p_web_socket(nullptr),
+            m_read_buffer(), m_started(false), m_stop(false)
 {
     ;
 }
@@ -83,7 +87,7 @@ bool MANAGER::ImagePrinted(const std::string & job_id, const std::string & image
     return(successful);
 }
 
-bool MANAGER::Start(FIERY::FITS::MODULE::MANAGER * p_module_mgr, const FIERY::FITS::MODULE::PROPERTIES::FIERY_PATH_SERVER & fiery_path_server)
+bool MANAGER::Start(FIERY::FITS::MODULE::MANAGER * p_module_mgr, const FIERY::FITS::MODULE::PROPERTIES::FIERY_PATH_CLIENT & fiery_path_client)
 {
     bool   successful = true;
 
@@ -92,7 +96,7 @@ bool MANAGER::Start(FIERY::FITS::MODULE::MANAGER * p_module_mgr, const FIERY::FI
     if (!m_started)
     {
         // if so, update the "management" variables.
-        m_fiery_path_server = fiery_path_server;
+        m_fiery_path_client = fiery_path_client;
         m_p_module_mgr      = p_module_mgr;
         m_p_web_socket      = new boost::beast::websocket::stream<boost::asio::ip::tcp::socket>(m_io_context);
         m_thread_enabled    = true;
@@ -114,7 +118,7 @@ bool MANAGER::Stop(void)
     waitForStop();
 
     // update the "management" variables.
-    m_fiery_path_server.clear();
+    m_fiery_path_client.clear();
 
     FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[WebSocket]: STOPPED");
 
@@ -126,14 +130,14 @@ bool MANAGER::connect(void)
 {
     boost::asio::ip::tcp::resolver   resolver(m_io_context);
 
-    std::string                      host       = m_fiery_path_server.ip;
+    std::string                      host       = m_fiery_path_client.ip;
     bool                             successful = false;
 
 
     try
     {
         // attempt to "connect" the WEB_SOCKET.
-        auto end_point = boost::asio::connect(m_p_web_socket->next_layer(), resolver.resolve(m_fiery_path_server.ip, std::to_string(m_fiery_path_server.port)));
+        auto end_point = boost::asio::connect(m_p_web_socket->next_layer(), resolver.resolve(m_fiery_path_client.ip, std::to_string(m_fiery_path_client.port)));
 
         // update the "host" string -- this will provide the value of the Host HTTP header during the WebSocket handshake (See https://tools.ietf.org/html/rfc7230#section-5.4).
         host += ':' + std::to_string(end_point.port());
@@ -150,8 +154,8 @@ bool MANAGER::connect(void)
         // attempt to "send" the "connect" EVENT.
         if (successful = sendConnect())
         {
-            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[WebSocket]: CONNECTED (IP = <" + m_fiery_path_server.ip + ">, Port = " +
-                        std::to_string(m_fiery_path_server.port) + ")");
+            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[WebSocket]: CONNECTED (IP = <" + m_fiery_path_client.ip + ">, Port = " +
+                        std::to_string(m_fiery_path_client.port) + ")");
         }
     }
     catch (std::exception const & exception)
@@ -181,10 +185,14 @@ bool MANAGER::disconnect(void)
     }
     catch (std::exception const & exception)
     {
-        std::string   error(exception.what());
+        // check to see if a "stop" was requested -- if not, log an "error".
+        if (!m_stop)
+        {
+            std::string   error(exception.what());
 
 
-        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: disconnect FAILED (Error = <" + error + ">)");
+            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: disconnect FAILED (Error = <" + error + ">)");
+        }
 
         // if unsuccessful, update the return variables.
         successful = false;
@@ -201,13 +209,21 @@ bool MANAGER::processEvent(const boost::property_tree::ptree & json_object)
 
 
     // attempt to "process" the EVENT, appropriately.
-    if (type == TYPE_PRINT)
+    if (type == TYPE_IMAGE_PROPERTIES)
+    {
+        successful = processEventImageProperties(json_object);
+    }
+    else if (type == TYPE_PRINT)
     {
         successful = processEventPrint(json_object);
     }
-    else if (type == TYPE_CANCEL)
+    else if (type == TYPE_CLEAN_UP)
     {
-        successful = processEventCancel(json_object);
+        successful = processEventCleanup(json_object);
+    }
+    else if (type == TYPE_ABORT)
+    {
+        successful = processEventAbort(json_object);
     }
     else
     {
@@ -218,14 +234,64 @@ bool MANAGER::processEvent(const boost::property_tree::ptree & json_object)
     return(successful);
 }
 
-bool MANAGER::processEventCancel(const boost::property_tree::ptree & json_object)
+bool MANAGER::processEventAbort(const boost::property_tree::ptree & json_object)
+{
+    bool   successful = false;
+
+
+    // attempt to "abort".  This may occur due to a "suspend/recover/resume" sequence from the Control Path and requires the FITS-Client to "abort" any IMAGE (associated with any
+    // JOB) because no existing IMAGEs will get printed.
+    successful = m_p_module_mgr->Abort();
+
+    // return the status.
+    return(successful);
+}
+
+bool MANAGER::processEventCleanup(const boost::property_tree::ptree & json_object)
 {
     std::string   job_id     = json_object.get<std::string>(JSON_PROPERTY_JOB_ID);
     bool          successful = false;
 
 
-    // attempt to "cancel" the JOB.
+    // attempt to "cleanup/cancel" the JOB.  This may occur due to an actual "cancel" request or a "cleanup" request after a successfully "printed" JOB, but either way, the
+    // FITS-Client needs to "cancel" the JOB because any remaining IMAGEs associated with this JOB will not get printed.
     successful = m_p_module_mgr->JobCancel(job_id);
+
+    // return the status.
+    return(successful);
+}
+
+bool MANAGER::processEventImageProperties(const boost::property_tree::ptree & json_object)
+{
+    std::string                                            image_id         = json_object.get<std::string>(JSON_PROPERTY_IMAGE_ID, "");
+    boost::optional<const boost::property_tree::ptree &>   image_properties = json_object.get_child_optional(JSON_PROPERTY_IMAGE_PROPERTIES);
+    std::string                                            job_id           = json_object.get<std::string>(JSON_PROPERTY_JOB_ID, "");
+    bool                                                   successful       = false;
+
+
+    // check to see if the JOB "ID" is "valid" -- if not, return immediately.
+    if (job_id.empty())
+    {
+        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: invalid JOB_ID");
+        return(successful);
+    }
+
+    // check to see if the IMAGE "IDs" is "valid" -- if not, return immediately.
+    if (image_id.empty())
+    {
+        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: invalid IMAGE_ID");
+        return(successful);
+    }
+
+    // check to see if the IMAGE "IDs" is "valid" -- if not, return immediately.
+    if (!image_properties)
+    {
+        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: invalid IMAGE_PROPERTIES");
+        return(successful);
+    }
+
+    // attempt to "transfer" the IMAGE.
+    successful = m_p_module_mgr->ImagePropertiesCreate(job_id, image_id, *image_properties);
 
     // return the status.
     return(successful);
@@ -233,22 +299,46 @@ bool MANAGER::processEventCancel(const boost::property_tree::ptree & json_object
 
 bool MANAGER::processEventPrint(const boost::property_tree::ptree & json_object)
 {
-    std::list<std::string>   ink_list;
+    boost::property_tree::ptree                            image_settings_default;
+    std::string                                            ink;
+    std::list<std::string>                                 ink_list;
 
-    std::string              image_id   = json_object.get<std::string>(JSON_PROPERTY_IMAGE_ID);
-    std::string              job_id     = json_object.get<std::string>(JSON_PROPERTY_JOB_ID);
-    std::string              job_name   = json_object.get<std::string>(JSON_PROPERTY_JOB_NAME, "");
-    bool                     successful = false;
+    std::string                                            image_id                = json_object.get<std::string>(JSON_PROPERTY_IMAGE_ID, "");
+    boost::optional<const boost::property_tree::ptree &>   image_settings_optional = json_object.get_child_optional(JSON_PROPERTY_SETTINGS);
+    std::string                                            job_id                  = json_object.get<std::string>(JSON_PROPERTY_JOB_ID, "");
+    std::string                                            job_name                = json_object.get<std::string>(JSON_PROPERTY_JOB_NAME, "");
+    bool                                                   successful              = false;
 
+
+    // check to see if the JOB "ID" is "valid" -- if not, return immediately.
+    if (job_id.empty())
+    {
+        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: invalid JOB_ID");
+        return(successful);
+    }
+
+    // check to see if the IMAGE "IDs" is "valid" -- if not, return immediately.
+    if (image_id.empty())
+    {
+        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: invalid IMAGE_ID");
+        return(successful);
+    }
 
     // loop through the INKS, attempting to "get" every INK.
     for (auto & entry : json_object.get_child(JSON_PROPERTY_INKS))
     {
-        ink_list.push_back(entry.second.get_value<std::string>());
+        // attempt to "get" the INK.
+        ink = entry.second.get_value<std::string>();
+
+        // check to see if the INK is "valid" -- if so, update the local variables.
+        if (!ink.empty())
+        {
+            ink_list.push_back(ink);
+        }
     }
 
     // attempt to "transfer" the IMAGE.
-    successful = m_p_module_mgr->ImageTransfer(job_id, job_name, image_id, ink_list);
+    successful = m_p_module_mgr->ImageTransfer(job_id, job_name, image_id, ink_list, image_settings_optional ? *image_settings_optional : image_settings_default);
 
     // return the status.
     return(successful);
@@ -264,10 +354,10 @@ void MANAGER::run(void)
     // loop continuously while "enabled".
     while (m_thread_enabled)
     {
-        // check to see if we are "connected" to the FIERY_PATH_SERVER.
+        // check to see if we are "connected" to the FIERY_PATH_CLIENT.
         if (!m_connected)
         {
-            // if not, attempt to "connect" to the FIERY_PATH_SERVER -- if unsuccessful, attempt to "sleep" for a bit and then try again.
+            // if not, attempt to "connect" to the FIERY_PATH_CLIENT -- if unsuccessful, attempt to "sleep" for a bit and then try again.
             if (!(m_connected = connect()))
             {
                 std::this_thread::sleep_for(std::chrono::seconds(SLEEP_IN_SECONDS_CONNECT));
@@ -277,7 +367,7 @@ void MANAGER::run(void)
         {
             try
             {
-                // otherwise, attempt to "read" from the FIERY_PATH_SERVER.
+                // otherwise, attempt to "read" from the FIERY_PATH_CLIENT.
                 if (m_p_web_socket->read(m_read_buffer, error_code) != 0)
                 {
                     boost::property_tree::ptree   json_object;
@@ -287,12 +377,16 @@ void MANAGER::run(void)
                     // if successful, attempt to "get" the JSON OBJECT.
                     boost::property_tree::read_json(input_string_stream, json_object);
 
-                    // atempt to "process" the EVENT.
+                    // attempt to "process" the EVENT.
                     processEvent(json_object);
                 }
                 else
                 {
-                    FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: read FAILED");
+                    // check to see if a "stop" was requested -- if not, log an "error".
+                    if (!m_stop)
+                    {
+                        FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: read FAILED");
+                    }
 
                     // attempt to "disconnect" the WEB_SOCKET.
                     disconnect();
@@ -306,10 +400,14 @@ void MANAGER::run(void)
             }
             catch (std::exception const & exception)
             {
-                std::string   error(exception.what());
+                // check to see if a "stop" was requested -- if not, log an "error".
+                if (!m_stop)
+                {
+                    std::string   error(exception.what());
 
 
-                FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: read FAILED (Error = <" + error + ">)");
+                    FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[WebSocket]: read FAILED (Error = <" + error + ">)");
+                }
             }
         }
     }
@@ -353,6 +451,7 @@ bool MANAGER::sendConnect(void)
 void MANAGER::waitForStop(void)
 {
     // update the "management" variables.
+    m_stop           = true;
     m_thread_enabled = false;
 
     // attempt to "disconnect" the WEB_SOCKET.

@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -52,7 +52,7 @@ namespace FIERY
                     virtual ~CONTROLLER();
 
                     // public "management" methods.
-                    bool Connect(const std::string & ip, const uint32_t & port, std::string & error);
+                    bool Connect(const std::string & ip, const uint32_t & port, const std::string & ip_local_bind, std::string & error);
                     void Run(void);
                     void Stop(void);
 

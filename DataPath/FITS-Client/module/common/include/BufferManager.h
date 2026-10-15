@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -79,8 +79,8 @@ namespace FIERY
                     // "accessor" methods.
                     void   clear()
                     {
-                        job_id.erase();
-                        image_id.erase();
+                        job_id.clear();
+                        image_id.clear();
                         p_buffer             = nullptr;
                         buffer_size_in_bytes = 0;
                     };
@@ -90,7 +90,7 @@ namespace FIERY
                 {
                     public:
                     // public constructors and destructor.
-                    MANAGER(const std::string & colorant, const uint64_t & buffer_pool_size_in_bytes);
+                    MANAGER(const std::string & colorant, const uint64_t & buffer_pool_size_in_bytes, const bool & buffer_pool_delayed_allocate);
                     virtual ~MANAGER();
 
                     // public "management" methods.
@@ -101,6 +101,7 @@ namespace FIERY
                     bool BufferDeleteFromPool(const std::string & job_id, const std::string & image_id);
 
                     // public JOB "management" methods.
+                    bool Abort(void);
                     bool JobCancel(const std::string & job_id);
 
 
@@ -123,6 +124,7 @@ namespace FIERY
                     uint8_t *                 m_p_pool_start;
                     uint8_t *                 m_p_pool_window_end;
                     uint8_t *                 m_p_pool_window_start;
+                    bool                      m_pool_delayed_allocate;
                     uint64_t                  m_pool_size_in_bytes;
                     uint64_t                  m_pool_size_in_bytes_available_left_of_window;
                     uint64_t                  m_pool_size_in_bytes_available_right_of_window;

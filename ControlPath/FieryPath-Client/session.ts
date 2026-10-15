@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -290,7 +290,9 @@ export class FieryPathSession
                         reject(err);
                     } else if (!body.token)
                     {
-                        reject('login token is invalid');
+                        const errorMsg = `login token is invalid (HTTP status: ${res && res.statusCode ? res.statusCode : 'unknown'})`;
+                        this.logError(errorMsg);
+                        reject(errorMsg);
                     }
                     else
                     {
@@ -312,6 +314,7 @@ export class FieryPathSession
             this.ws.on('open', () =>
             {
                 this.logInfo('Connected ws');
+                this.setupKeepAlive();
                 resolve('connected ws');
             });
 
@@ -349,9 +352,9 @@ export class FieryPathSession
     }
 
     // Sends the mandatory "connect" message to the server once a websocket connection is created
-    private connectWebSocket(): void 
+    private connectWebSocket(): Promise<any> 
     {
-        this.sendMessage('connect', { token: this.m_token });
+        return this.sendMessage('connect', { token: this.m_token });
     }
 
     // Logout from the server
@@ -439,19 +442,29 @@ export class FieryPathSession
                 // We have received an event from the server
                 if (this.m_eventCallback)
                     this.m_eventCallback(message.method, message, this.m_parent);
-            } else if (this.m_defer_list_map.has(message.id)) 
+            }
+            else if (this.m_defer_list_map.has(message.id)) 
             {
                 const defer = this.m_defer_list_map.get(message.id);
+                this.m_defer_list_map.delete(message.id);
+
                 if (message.hasOwnProperty('error')) 
                 {
-                    defer.reject(message.error);
+                    const errObj = message.error;
+                    const err = new Error(typeof errObj?.message === 'string' ? errObj.message : 'JSON-RPC error');
+                    (err as any).code = errObj?.code;
+                    (err as any).data = errObj?.data;
+                    defer.reject(err);
+                    return;
                 }
 
                 if (message.hasOwnProperty('result')) 
                 {
                     defer.resolve(message.result);
-                    this.m_defer_list_map.delete(message.id);
+                    return;
                 }
+
+                defer.reject(new Error('Invalid JSON-RPC response: missing result/error'));
             }
         }
         catch (e: any)
@@ -498,6 +511,15 @@ export class FieryPathSession
         const message = await this.logout();
         this.logInfo(message);
         process.exit(0);
+    }
+
+    private setupKeepAlive(): void 
+    {
+        setInterval(() => 
+        {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) 
+                this.ws.ping();
+        }, 30000);
     }
 }
 

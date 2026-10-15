@@ -1,6 +1,6 @@
 ﻿/**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -28,15 +28,14 @@ class FieryPathIfc extends EventEmitter
 {
     public m_jobs_priority_map: Map<string, any> = new Map();
     private m_image_starting_normal_list: any[] = [];
-    private m_image_starting_rush_list: any[] = [];
     private m_image_completing_normal_list: any[] = [];
-    private m_image_completing_rush_list: any[] = [];
     private m_image_completing_pending_normal_list: any[] = [];
-    private m_image_completing_pending_rush_list: any[] = [];
     private m_input_slot_list: any[] = [];
     private m_ready_status_set_once: boolean = false;
     private m_defaultInkList = ["cyan", "magenta", "yellow", "black"];
     private m_data_path_session: DataPathSession;
+    public m_unique_job_number: number = 1;
+    public m_unique_image_number: number = 1;
 
     public m_fiery_path_session: FieryPathSession;
 
@@ -234,9 +233,14 @@ class FieryPathIfc extends EventEmitter
 
         try
         {
+            // Check if we can get inks from the server
+            let inkTypeList = _.clone(this.m_defaultInkList);
+            const result = await this.m_fiery_path_session.Get("/system/dfe/info", {});
+            if (result != null && result.settings != null && result.settings.inks != null)
+                inkTypeList = result.settings.inks;
+
             // First delete any current inks if set
             await this.m_fiery_path_session.Delete('/system/printer/inks', {});
-            const inkTypeList = _.clone(this.m_defaultInkList);
             const inkTypeListLength = inkTypeList.length;
             winston.info('sendInkConfiguration: inkTypeList is ' + JSON.stringify(inkTypeList));
 
@@ -246,7 +250,8 @@ class FieryPathIfc extends EventEmitter
             for (let s = 0; s < inkTypeListLength; s++)
             {
                 const inkType = inkTypeList.shift();
-                const inkObj = { ink: {type: inkType, capacity: 100, number: number++, dropsize: dropSizeArray} };
+                // const inkObj = { ink: {type: inkType, capacity: 100, number: number++, dropsize: dropSizeArray} }; // This is how you can send additional information like drop size for each ink if required
+                const inkObj = { ink: { type: inkType, capacity: 100, number: number++ } };
                 await this.sendInk(inkObj);
             }
         }
@@ -298,6 +303,19 @@ class FieryPathIfc extends EventEmitter
             winston.info("setPrinterReadyStatus: setting printer status to ready");
             const result = await this.m_fiery_path_session.Put("/system/printer/status/", { "action": "ready" });
             winston.info("setPrinterReadyStatus: setting printer status to ready success");
+
+            // Optional messages. Fiery will let you know if and when these optional messages are needed. These are just examples of how to send them if required
+            /*
+            const jsonEVData = { "key1": "value1", "key2": "value2" };
+            const evdata = { "eVMessage": jsonEVData }
+            winston.info("Sending message to EV " + JSON.stringify(evdata))
+            await this.m_fiery_path_session.Put('/dfe/external/evmessage', evdata);
+
+            const jsonDPData = { "key1": "value1", "key2": "value2" };
+            const dpdata = { "eVMessage": jsonDPData }
+            winston.info("Sending message to DP " + JSON.stringify(dpdata))
+            await this.m_fiery_path_session.Put('/dfe/external/dpmessage', dpdata);
+            */
         }
         catch (err)
         {
@@ -361,10 +379,26 @@ class FieryPathIfc extends EventEmitter
     // imageStarting event response handlers
     ///////////////////////////////////////////////////////////////////////////////////
 
+    // Sends image "properties" for an "imageStarting" event received to Data Path Session clients.
+    private async sendImagePropertiesToDataPath(image: any): Promise<void>
+    {
+        if (!image || !image.properties)
+            return;
+
+        const message = { type: "imageProperties", jobId: image.jobId, imageId: image.imageId, imageProperties: image.properties };
+        this.m_data_path_session.SendMessage(JSON.stringify(message));
+
+        // Wait until the current send request is queued before proceeding
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+
     // Sends image "start" for an "imageStarting" event received. The client should initiate this as quickly as possible. Any delay in sending this message can result in performance issues
     private async sendImageStart(image: any)
     {
-        const imageToSend = { id: image.imageId, offset: image.imageOffset };
+        // First inform the Data Path Session client about any image properties it is interested in
+        await this.sendImagePropertiesToDataPath(image);
+
+        const imageToSend = { id: image.imageId, offset: image.offset };
         winston.info(`sendImageStart: request sent for jobId = ${image.jobId}, imageId = ${image.imageId}`);
         try
         {
@@ -381,17 +415,6 @@ class FieryPathIfc extends EventEmitter
                     {
                         // We have successfully sent the image "start"
                         let imageRemoved = null;
-                        if (image.rush)
-                        {
-                            imageRemoved = this.m_image_starting_rush_list.shift();
-
-                            // Add this to the pending list if it is not already part of the completing list.This can only happen if we receive a imageCompleting before we get a response to image start ###
-                            if (!this.listContainsImageId(this.m_image_completing_rush_list, imageRemoved.jobId, imageRemoved.imageId))
-                                this.m_image_completing_pending_rush_list.push({ jobId: imageRemoved.jobId, imageId: imageRemoved.imageId });
-                            else
-                                winston.warn(`sendImageStart ignoring adding to image completing rush pending list since imageCompleting was already received for jobId ${imageRemoved.jobId} imageId ${imageRemoved.imageId}`);
-                        }
-                        else
                         {
                             imageRemoved = this.m_image_starting_normal_list.shift();
                             
@@ -430,10 +453,7 @@ class FieryPathIfc extends EventEmitter
             else
             {
                 // No need to resend the message, remove it from our list
-                if (image.rush)
-                    this.m_image_starting_rush_list.shift();
-                else
-                    this.m_image_starting_normal_list.shift();
+                this.m_image_starting_normal_list.shift();
             }
         }
         catch (error)
@@ -449,9 +469,7 @@ class FieryPathIfc extends EventEmitter
     public processImageStart()
     {
         let image = null;
-        if (this.m_image_starting_rush_list.length !== 0)
-            image = this.m_image_starting_rush_list[0];
-        else if (this.m_image_starting_normal_list.length !== 0)
+        if (this.m_image_starting_normal_list.length !== 0)
             image = this.m_image_starting_normal_list[0];
 
         if (image !== null)
@@ -474,17 +492,8 @@ class FieryPathIfc extends EventEmitter
         const job = this.m_jobs_priority_map.get(image.jobId);
         if (job !== null)
         {
-            // Add the appropriate list (rush or normal). Keeping a rush list allows responding to rush jobs quickly
-            if (job.rush)
-            {
-                image.rush = true;
-                this.m_image_starting_rush_list.push(image);
-            }
-            else
-            {
-                image.rush = false;
-                this.m_image_starting_normal_list.push(image);
-            }
+            // Add the image for processing
+            this.m_image_starting_normal_list.push(image);
 
             if (job.started)
             {
@@ -519,10 +528,7 @@ class FieryPathIfc extends EventEmitter
                     {
                         // We have successfully sent the image "complete"
                         let imageRemoved = null;
-                        if (image.rush)
-                            imageRemoved = this.m_image_completing_rush_list.shift();
-                        else
-                            imageRemoved = this.m_image_completing_normal_list.shift();
+                        imageRemoved = this.m_image_completing_normal_list.shift();
 
                         if (image.imageId !== imageRemoved.imageId)
                             winston.error("sendImageComplete image removed does not match the image sent on success");
@@ -556,10 +562,7 @@ class FieryPathIfc extends EventEmitter
             else
             {
                 // No need to resend the message, remove it from our list
-                if (image.rush)
-                    this.m_image_completing_rush_list.shift();
-                else
-                    this.m_image_completing_normal_list.shift();
+                this.m_image_completing_normal_list.shift();
             }
         }
         catch (error)
@@ -577,9 +580,7 @@ class FieryPathIfc extends EventEmitter
     private processImageComplete()
     {
         let image = null;
-        if (this.m_image_completing_rush_list.length !== 0)
-            image = this.m_image_completing_rush_list[0];
-        else if (this.m_image_completing_normal_list.length !== 0)
+        if (this.m_image_completing_normal_list.length !== 0)
             image = this.m_image_completing_normal_list[0];
 
         if (image !== null)
@@ -603,7 +604,14 @@ class FieryPathIfc extends EventEmitter
     private sendImagePrintToDataPath(image: any, inks: string)
     {
         const inksArray: string[] = inks.split(';').map(item => item.toLowerCase());
-        const message = { type: "print", jobId: image.jobId, imageId: image.imageId, jobName: image.jobName, inks: inksArray };
+        const settingsR = image.settings;
+        settingsR.jobNumber = image.jobNum;
+        settingsR.imageNumber = image.imageNum;
+        settingsR.copyNumber = image.copyNum;
+        settingsR.jobMode = image.jobMode;
+        settingsR.nozzleOffset = image.offset;
+
+        const message = { type: "print", jobId: image.jobId, imageId: image.imageId, jobName: image.jobName, inks: inksArray, settings: settingsR };
         this.m_data_path_session.SendMessage(JSON.stringify(message));
     }
 
@@ -614,20 +622,13 @@ class FieryPathIfc extends EventEmitter
         const job = this.m_jobs_priority_map.get(jobId);
         if (job !== null)
         {
-            if (job.rush)
-            {
-                const imageObj = _.find(this.m_image_completing_rush_list, (item) => item.jobId === jobId && item.imageId === imageId);
-                if (imageObj)
-                    imageObj.printed = true;
-            }
-            else
-            {
-                const imageObj = _.find(this.m_image_completing_normal_list, (item) => item.jobId === jobId && item.imageId === imageId);
-                if (imageObj)
-                    imageObj.printed = true;
-            }
+            const imageObj = _.find(this.m_image_completing_normal_list, (item) => item.jobId === jobId && item.imageId === imageId);
+            if (imageObj)
+                imageObj.printed = true;
 
-            // Trigger sending image complete
+            // Trigger sending image complete. Keep in mind that this is just indicatin that the image was sent to print electronics
+            // The client may need addtional inforation from press to determine when the image is actually printed/stacked/ejected.
+            // It is only after that point that the image "complete" should be sent    
             this.processImageComplete();
         }
         else
@@ -643,19 +644,9 @@ class FieryPathIfc extends EventEmitter
             // We should have client(s) connected for DataPathSession. However,if we don't have any, then just mark the image "printed" as true
             image.printed = !this.m_data_path_session.ClientsConnected();
 
-            // Add the appropriate list (rush or normal). Keeping a rush list allows responding to rush jobs quickly
-            if (job.rush)
-            {
-                image.rush = true;
-                this.m_image_completing_rush_list.push(image);
-                this.m_image_completing_pending_rush_list = _.reject(this.m_image_completing_pending_rush_list, (listImage) => image.jobId === listImage.jobId && image.imageId === listImage.imageId);
-            }
-            else
-            {
-                image.rush = false;
-                this.m_image_completing_normal_list.push(image);
-                this.m_image_completing_pending_normal_list = _.reject(this.m_image_completing_pending_normal_list, (listImage) => image.jobId === listImage.jobId && image.imageId === listImage.imageId);
-            }
+            // Add the list for processing
+            this.m_image_completing_normal_list.push(image);
+            this.m_image_completing_pending_normal_list = _.reject(this.m_image_completing_pending_normal_list, (listImage) => image.jobId === listImage.jobId && image.imageId === listImage.imageId);
 
             if (job.started)
             {
@@ -762,7 +753,7 @@ class FieryPathIfc extends EventEmitter
                 // Inform the Data Path Session to cleanup its memory for any images that were transferred but for which imageCanceling was sent
                 if (this.m_data_path_session.ClientsConnected())
                 {
-                    const message = { type: "cancel", jobId: job.id };
+                    const message = { type: "cleanup", jobId: job.id };
                     this.m_data_path_session.SendMessage(JSON.stringify(message));
                 }
             }
@@ -843,23 +834,14 @@ class FieryPathIfc extends EventEmitter
         const job = this.m_jobs_priority_map.get(jobId);
         if (job)
         {
-            if (job.rush)
-            {
-                this.m_image_starting_rush_list = _.reject(this.m_image_starting_rush_list, (image) => image.jobId === jobId && !image.sending);
-                this.m_image_completing_rush_list = _.reject(this.m_image_completing_rush_list, (image) => image.jobId === jobId && !image.sending);
-                this.m_image_completing_pending_rush_list = _.reject(this.m_image_completing_pending_rush_list, (image) => image.jobId === jobId);
-            }
-            else
-            {
-                this.m_image_starting_normal_list = _.reject(this.m_image_starting_normal_list, (image) => image.jobId === jobId && !image.sending);
-                this.m_image_completing_normal_list = _.reject(this.m_image_completing_normal_list, (image) => image.jobId === jobId && !image.sending);
-                this.m_image_completing_pending_normal_list = _.reject(this.m_image_completing_pending_normal_list, (image) => image.jobId === jobId);
-            }
+            this.m_image_starting_normal_list = _.reject(this.m_image_starting_normal_list, (image) => image.jobId === jobId && !image.sending);
+            this.m_image_completing_normal_list = _.reject(this.m_image_completing_normal_list, (image) => image.jobId === jobId && !image.sending);
+            this.m_image_completing_pending_normal_list = _.reject(this.m_image_completing_pending_normal_list, (image) => image.jobId === jobId);
 
             this.m_jobs_priority_map.delete(jobId);
         }
 
-        winston.info(`JOBS_MAP = ${this.m_jobs_priority_map.size}, NORMAL_STARTING_LIST = ${this.m_image_starting_normal_list.length}, NORMAL_COMPLETING_LIST = ${this.m_image_completing_normal_list.length}, RUSH_STARTING_LIST = ${this.m_image_starting_rush_list.length}, RUSH_COMPLETING_LIST = ${this.m_image_completing_rush_list.length}, NORMAL_COMPLETING_PENDING_LIST = ${this.m_image_completing_pending_normal_list.length}, RUSH_COMPLETING_PENDING_LIST = ${this.m_image_completing_pending_rush_list.length}`);
+        winston.info(`JOBS_MAP = ${this.m_jobs_priority_map.size}, NORMAL_STARTING_LIST = ${this.m_image_starting_normal_list.length}, NORMAL_COMPLETING_LIST = ${this.m_image_completing_normal_list.length}, NORMAL_COMPLETING_PENDING_LIST = ${this.m_image_completing_pending_normal_list.length}`);
     }
 
     // Cleans up the image completing pending list for a canceled image
@@ -868,7 +850,6 @@ class FieryPathIfc extends EventEmitter
         // If an imageCanceling event is received, we need to cleanup the image completing pending list
         // Normally, this will get cleaned up when a corresponding imageCompleting event is received. But in this case,
         // we will not get that event and hence need to do this cleanup separately
-        this.m_image_completing_pending_rush_list = _.reject(this.m_image_completing_pending_rush_list, (image) => image.jobId === jobId && image.imageId === imageId);
         this.m_image_completing_pending_normal_list = _.reject(this.m_image_completing_pending_normal_list, (image) => image.jobId === jobId && image.imageId === imageId);
     }
 
@@ -903,16 +884,8 @@ class FieryPathIfc extends EventEmitter
         const job = this.m_jobs_priority_map.get(jobId);
         if (job)
         {
-            if (job.rush)
-            {
-                if (this.listContainsJobId(this.m_image_completing_rush_list, jobId))
-                    empty = false;
-            }
-            else
-            {
-                if (this.listContainsJobId(this.m_image_completing_normal_list, jobId))
-                    empty = false;
-            }
+            if (this.listContainsJobId(this.m_image_completing_normal_list, jobId))
+                empty = false;
         }
 
         return empty;
@@ -926,16 +899,8 @@ class FieryPathIfc extends EventEmitter
         const job = this.m_jobs_priority_map.get(jobId);
         if (job)
         {
-            if (job.rush)
-            {
-                if (this.listContainsJobId(this.m_image_starting_rush_list, jobId) || this.listContainsJobId(this.m_image_completing_rush_list, jobId) || this.listContainsJobId(this.m_image_completing_pending_rush_list, jobId))
-                    empty = false;
-            }
-            else
-            {
-                if (this.listContainsJobId(this.m_image_starting_normal_list, jobId) || this.listContainsJobId(this.m_image_completing_normal_list, jobId) || this.listContainsJobId(this.m_image_completing_pending_normal_list, jobId))
-                    empty = false;
-            }
+            if (this.listContainsJobId(this.m_image_starting_normal_list, jobId) || this.listContainsJobId(this.m_image_completing_normal_list, jobId) || this.listContainsJobId(this.m_image_completing_pending_normal_list, jobId))
+                empty = false;
         }
 
         return empty;
@@ -996,9 +961,14 @@ export class PrinterIfc
             // Cleanup any leftover values
             this.m_fiery_path_ifc.cleanupJob(job.id);
 
+            // See if jobMode attribute is available and set based on that
+            let jobMode = false;
+            if (job.jobMode !== undefined)
+                jobMode = job.jobMode;
+
             // Add to the jobs priority map
             const imageToInksMap: Map<string, string> = new Map();
-            const jobObj = { name: job.name, rush: job.rush, started: false, canceling: false, inksMap: imageToInksMap };
+            const jobObj = { name: job.name, started: false, canceling: false, inksMap: imageToInksMap, jobNum: this.m_fiery_path_ifc.m_unique_job_number++, jobMode: jobMode };
             this.m_fiery_path_ifc.m_jobs_priority_map.set(job.id, jobObj);
 
             // Respond to the message and send a "start" for it
@@ -1025,11 +995,14 @@ export class PrinterIfc
             // This is for future enhancements, settings should be empty
             const imageSettings: any = {};
 
-            // Provide an offset if required
+            // Provide an offset if required. This will be used both in the response to image "start"
             let offset = 0;
 
+            // Add any other image properties for this image that needs to be sent to the Data Path Session clients. Currently, only one property is being sent, but this can be extended to send any other properties as needed. 
+            const imageProperties: any = { front: job.image.front };
+
             // Image object to be pushed into the image_starting list
-            const image = {jobId: job.id, imageId: job.image.id, offset: offset, settings: imageSettings, rush: false, sending: false};
+            const image = {jobId: job.id, imageId: job.image.id, offset: offset, settings: imageSettings, sending: false, properties: imageProperties};
 
             // Add this image to the starting list, it will be processed as soon as possible
             this.m_fiery_path_ifc.addToImageStartingList(image);
@@ -1050,7 +1023,11 @@ export class PrinterIfc
                 {
                     // Image object to be pushed into the image_completing list, the actual complete should be sent only once the image has been printed/ejected/stacked.
                     // Once all images have been printed, we need send a response to jobCompleting event. In this case, the last attribute is used to decide when it will be sent
-                    const image = { jobId: job.id, imageId: job.image.id, jobName: jobObj.name, rush: false, printed: false, sending: false, last: job.image.last };
+
+                    // Provide an offset if required. This will be used when sending the "print" message to DataPathSession client(s)
+                    let offset = 0;
+
+                    const image = { jobId: job.id, imageId: job.image.id, jobName: jobObj.name, printed: false, sending: false, last: job.image.last, settings: job.image, jobMode: jobObj.jobMode, jobNum: jobObj.jobNum, imageNum: this.m_fiery_path_ifc.m_unique_image_number++, copyNum: job.image.copy, offset: offset };
                     this.m_fiery_path_ifc.addToImageCompletingList(image);
                 }
                 else
@@ -1138,7 +1115,102 @@ export class PrinterIfc
         {
             winston.info("jobRecovering: received");
 
-            // This is for informational purposes only, no particular action is required from the printer
+            // This means that the client had requested job recovery and the DFE has started that process
+            // Client can initiate a "recover/resune" sequence as an example when there is a jam. In that case, the client should also send an "abort" to the data path session
+            // The client should first remove any leftover job(s) and recreate any internal data structures for this job as needed
+
+        });
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        // Fiery Path Optional Events.
+        // Check the Fiery Path Addendum document for more details on these events if available.
+        // Most printers will not need to implement handlers for these events, but they are available for printers that need them. The details for these events 
+        // will be provided by Fiery if they are required to be implemented by the printer
+        ///////////////////////////////////////////////////////////////////////////////////
+
+        // Event that allows the printer to specify the order of sheets in each subset for products that require that. This event will be received for each new subset that is detected
+        this.m_fiery_path_ifc.on("subsetPreparing", (message) =>
+        {
+            winston.info("subsetPreparing: received");
+
+            // Some products need to specify the order of sheets in each subset. To allow that, the client will receive a subsetPreparing event for
+            // each new subset that is detected. The client can specify the order of sheets that it needs when it responds to each subsetPreparing event
+            // Check the Fiery Path Addendum document for more details on how to respond to this event and specify the order of sheets in each subset
+
+        });
+
+        // Event that allows the printer to perform constrain checking before the job starts
+        this.m_fiery_path_ifc.on("jobPreparing", (message) =>
+        {
+            winston.info("jobPreparing: received");
+
+            // Some products need to validate a job’s properties against the current configuration/state of the printer before allowing 
+            // the job to print. To support that, the client will receive a jobPreparing event
+            // Check the Fiery Path Addendum document for more details on how to respond to this event
+
+        });
+
+        // Event recevied that indicates that the job is being updated with new properties when a force print is initiated
+        this.m_fiery_path_ifc.on("jobUpdating", (message) =>
+        {
+            winston.info("jobUpdating: received");
+
+            // This event is an indication that the job properties are being updated when a force print is initiated.
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // IPDS specific event that indicates that the DFE is starting to discard the images in a job. This event will be received only for IPDS jobs
+        this.m_fiery_path_ifc.on("dfeDiscardStarting", (message) =>
+        {
+            winston.info("dfeDiscardStarting: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // IPDS specific event that indicates that the DFE will resume sending the images in a job. This event will be received only for IPDS jobs
+        this.m_fiery_path_ifc.on("dfeDiscardEnding", (message) =>
+        {
+            winston.info("dfeDiscardEnding: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // Details for this event will be provided by Fiery if is required to be implemented by the printer
+        this.m_fiery_path_ifc.on("dfeDPMessage", (message) =>
+        {
+            winston.info("dfeDPMessage: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // Details for this event will be provided by Fiery if is required to be implemented by the printer
+        this.m_fiery_path_ifc.on("dfeEVMessage", (message) =>
+        {
+            winston.info("dfeEVMessage: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // Details for this event will be provided by Fiery if is required to be implemented by the printer
+        this.m_fiery_path_ifc.on("dfeOVMessage", (message) =>
+        {
+            winston.info("dfeOVMessage: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
+
+        });
+
+        // Details for this event will be provided by Fiery if is required to be implemented by the printer
+        this.m_fiery_path_ifc.on("dfePIMessage", (message) =>
+        {
+            winston.info("dfePIMessage: received");
+
+            // Check the Fiery Path Addendum document for more details on this event
 
         });
 

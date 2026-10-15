@@ -1,14 +1,10 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  (c) Copyright 1990-2023  Electronics for Imaging, Inc. ("EFI").     All Rights Reserved                                                                                       */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
-/*  EFI products contain certain trade secrets and confidential and proprietary information of EFI.  Use, reproduction, disclosure, distribution by any means  are prohibited,    */
-/*  except pursuant to a written license from EFI. Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works based on this        */
-/*  software are prohibited, except pursuant to a written license from EFI. Use of copyright notice does not imply publication or disclosure.                                     */
-/*                                                                                                                                                                                */
-/*  Restricted Rights Legend:                                                                                                                                                     */
-/*  Use, duplication, or disclosure by the Government is subject to restrictions as set forth in subparagraph (c)(1)(ii) of The Rights in Technical Data and Computer Software    */
-/*  clause in DFARS 252.227-7013 or subparagraphs (c)(1) and (2) of the Commercial Computer Software -- Restricted Rights at 48 CFR 52.227-19, as applicable.                     */
+/*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
+/*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
+/*  based on this software are prohibited, except pursuant to a written license from Fiery. Use of copyright notice does not imply publication or disclosure.                     */
 /*                                                                                                                                                                                */
 /**********************************************************************************************************************************************************************************/
 #include "ConfigController.h"
@@ -16,6 +12,8 @@
 
 #include "fieryImageTransferServiceIfc.h"
 #include "fieryImageTransferServiceIfc.pb.h"
+
+#include <boost/asio/ip/host_name.hpp>
 
 #include <chrono>
 
@@ -25,20 +23,28 @@ using namespace FIERY::FITS::CORE::CONFIG;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                local variables                                                                                 */
 /**********************************************************************************************************************************************************************************/
-const std::string   CONTROLLER::NAME                     = "Configuration";
-const uint32_t      CONTROLLER::PORT_DEFAULT             = 9210;
-const uint32_t      CONTROLLER::SLEEP_IN_SECONDS_CONNECT = 5;
-const uint32_t      CONTROLLER::SLEEP_IN_SECONDS_IDLE    = 10;
+const uint32_t      CONTROLLER::CONNECT_ATTEMPTS_WATERMARK = 3;
+const std::string   CONTROLLER::IP_DEFAULT                 = "127.0.0.1";
+const std::string   CONTROLLER::NAME                       = "Configuration";
+const uint32_t      CONTROLLER::PORT_DEFAULT               = 9210;
+const uint32_t      CONTROLLER::SLEEP_IN_SECONDS_CONNECT   = 5;
+const uint32_t      CONTROLLER::SLEEP_IN_SECONDS_IDLE      = 10;
 
 
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
 CONTROLLER::CONTROLLER(const FIERY::FITS::MODULE::PROPERTIES::FITS_SERVER & fits_server_properties, boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN> & p_module_plug_in) :
-            m_colorant_controller_list(), m_connected(false), m_enabled(true), m_fits_server_properties(fits_server_properties), m_name(CONTROLLER::NAME),
+            m_colorant_controller_list(), m_connected(false), m_enabled(true), m_fits_server_properties(fits_server_properties), m_ip_local_bind(), m_name(CONTROLLER::NAME),
             m_p_module_plug_in(p_module_plug_in), m_socket_controller(nullptr), m_thread(), m_thread_mutex(), m_thread_signal()
 {
     m_socket_controller = new SOCKET::CONTROLLER(m_name);
+
+    // check to see if the FITS "ip" is valid -- if not, update the "management" variables.
+    if (m_fits_server_properties.ip.empty())
+    {
+        m_fits_server_properties.ip = IP_DEFAULT;
+    }
 
     // check to see if the FITS "port" is valid -- if not, update the "management" variables.
     if (m_fits_server_properties.port == 0)
@@ -61,7 +67,7 @@ int CONTROLLER::Start()
 
 
     // check to see if the IP is "valid" -- if not, return immediately.
-    if (m_fits_server_properties.ip.empty() || (m_fits_server_properties.ip == ""))
+    if (m_fits_server_properties.ip.empty())
     {
         FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[" + m_name + "]: INVALID IP (Value = <" + m_fits_server_properties.ip + ">)", true);
         return(result);
@@ -69,6 +75,8 @@ int CONTROLLER::Start()
 
     // attempt to "run" the CONTROLLER.
     m_thread = std::thread(std::bind(&CONTROLLER::run, this));
+
+    LOG::MANAGER::LogInfo("FITS-Client[" + m_name + "]: RUNNING");
 
     // attempt to "wait" for the CONTROLLER to "exit".
     waitForExit();
@@ -80,6 +88,8 @@ int CONTROLLER::Start()
 
 void CONTROLLER::Stop()
 {
+    LOG::MANAGER::LogInfo("FITS-Client[" + m_name + "]: STOPPING");
+
     // update the "management" variables.
     m_enabled = false;
 
@@ -88,6 +98,17 @@ void CONTROLLER::Stop()
     {
         p_colorant_controller->Stop();
     }
+
+    for (auto p_colorant_controller : m_colorant_controller_list)
+    {
+        p_colorant_controller->WaitForExit();
+        delete p_colorant_controller;
+    }
+
+    m_colorant_controller_list.clear();
+
+    // attempt to "stop" the FITS-Client "module" MANAGER.
+    m_p_module_plug_in->Stop();
 
     // attempt to "wait" for the CONTROLLER to "stop".
     waitForStop();
@@ -99,6 +120,7 @@ bool CONTROLLER::connect(void)
 {
     std::string   error;
 
+    uint32_t      connect_attempts        = 0;
     bool          connected               = false;
     bool          connection_error_logged = false;
 
@@ -106,11 +128,14 @@ bool CONTROLLER::connect(void)
     // loop continuously, attempting to "connect" to the FITS_SERVER.
     while (!connected)
     {
+        // update the local variables.
+        connect_attempts++;
+
         // attempt to "connect" the SOCKET::CONTROLLER.
-        if (!(connected = m_socket_controller->Connect(m_fits_server_properties.ip, m_fits_server_properties.port, error)))
+        if (!(connected = m_socket_controller->Connect(m_fits_server_properties.ip, m_fits_server_properties.port, m_ip_local_bind, error)))
         {
             // check to see we need to "log" the "error" -- if so, do it.
-            if (!connection_error_logged)
+            if ((connect_attempts > CONNECT_ATTEMPTS_WATERMARK) && !connection_error_logged)
             {
                 LOG::MANAGER::LogError("FITS-Client[" + m_name + "]: connect FAILED (IP = <" + m_fits_server_properties.ip + ">, Port = " +
                             std::to_string(m_fits_server_properties.port) + ", Error = <" + error + ">)", true);
@@ -196,7 +221,82 @@ void CONTROLLER::connectColorants(void)
     }
 }
 
-// Process the received server configuration data and create Colorant Controllers
+bool CONTROLLER::getIpLocalBind(void)
+{
+    std::vector<std::string>   ip_list;
+
+    bool                       successful = false;
+
+
+    // attempt to "get" the "local" IP "list".
+    if (getIpLocalList(ip_list))
+    {
+        std::size_t   position;
+
+
+        // if successful, loop through the "local" IP "list" attempting to "find" an IP "similar" to the FITS-Server IP.
+        for (auto & entry : ip_list)
+        {
+            // attempt to find the last "." in the IP address.
+            if ((position = entry.find_last_of('.')) != std::string::npos)
+            {
+                // attempt to "find" a match of the first 3 "octets".
+                if (entry.compare(0, position, m_fits_server_properties.ip) == 0)
+                {
+                    // if successful, update the "management" variables.
+                    m_ip_local_bind = entry;
+
+                    // update the status and break out of the "for" loop.
+                    successful = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // return the status.
+    return(successful);
+}
+
+bool CONTROLLER::getIpLocalList(std::vector<std::string> & ip_list)
+{
+    bool   successful = true;
+
+
+    try
+    {
+        boost::asio::ip::address                   address;
+        boost::asio::ip::tcp::resolver::iterator   iterator;
+
+        boost::asio::ip::tcp::resolver::query      query(boost::asio::ip::host_name(), "");
+        boost::asio::ip::tcp::resolver             resolver(m_io_context);
+
+
+        // initialize the local variables.
+        iterator = resolver.resolve(query);
+
+        while (iterator != boost::asio::ip::tcp::resolver::iterator())
+        {
+            address = (iterator++)->endpoint().address();
+
+            // check to see if this is NOT a "V6" IP address -- if so, update the return variables.
+            if (!address.is_v6())
+            {
+                LOG::MANAGER::LogInfo("FITS-Client[" + m_name + "]: LOCAL IP = " + address.to_string());
+                ip_list.push_back(address.to_string());
+            }
+        }
+    }
+    catch (...)
+    {
+        LOG::MANAGER::LogError("FITS-Client[" + m_name + "]: EXCEPTION getIpLocalList");
+        successful = false;
+    }
+
+    // return the status.
+    return(successful);
+}
+
 void CONTROLLER::processServerConfiguration(const std::vector<uint8_t> & buffer_server_configuration)
 {
     std::list<std::string>                       colorant_list;
@@ -221,7 +321,8 @@ void CONTROLLER::processServerConfiguration(const std::vector<uint8_t> & buffer_
 
 
                 // attempt to "create" a COLORANT_CONTROLLER.
-                if ((p_colorant_controller = new FIERY::FITS::CORE::COLORANT::CONTROLLER(m_fits_server_properties.ip, ports.port(), ports.ink(), m_p_module_plug_in)) != nullptr)
+                if ((p_colorant_controller = new FIERY::FITS::CORE::COLORANT::CONTROLLER(m_fits_server_properties.ip, ports.port(), m_ip_local_bind, ports.ink(),
+                            m_p_module_plug_in)) != nullptr)
                 {
                     // if successful, attempt to "start" the COLORANT_CONTROLLER.
                     p_colorant_controller->Start();
@@ -266,6 +367,13 @@ void CONTROLLER::processServerConfiguration(const std::vector<uint8_t> & buffer_
 void CONTROLLER::run(void)
 {
     LOG::MANAGER::LogInfo("FITS-Client[" + m_name + "]: RUNNING");
+
+    // check to see if we need to locally "bind" to a "similar" IP.
+    if (m_fits_server_properties.bind_to_similar_local_ip)
+    {
+        // if so, attempt to 
+        getIpLocalBind();
+    }
 
     // loop continuously while "enabled".
     while (m_enabled)
@@ -323,17 +431,6 @@ void CONTROLLER::waitForStop(void)
     {
         m_thread.join();
     }
-
-    for (auto p_colorant_controller : m_colorant_controller_list)
-    {
-        p_colorant_controller->WaitForExit();
-        delete p_colorant_controller;
-    }
-
-    m_colorant_controller_list.clear();
-
-    // attempt to "stop" the FITS-Client "module" MANAGER.
-    m_p_module_plug_in->Stop();
 
     // attempt to "set" the THREAD "signal".
     m_thread_signal.notify_all();

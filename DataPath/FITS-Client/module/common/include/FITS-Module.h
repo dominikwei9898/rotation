@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -40,7 +40,7 @@ class FITS_MODULE_PLUG_IN : public FIERY::FITS::MODULE::PLUG_IN
     virtual ~FITS_MODULE_PLUG_IN();
 
     // public "management" methods.
-    bool Initialize(const FIERY::FITS::MODULE::LOGGER & logger);
+    bool Initialize(const FIERY::FITS::MODULE::LOGGER & logger, const std::string & ip_fiery_path_client_override = "");
 
     // public CONNECTION "management" methods.
     bool Start(const std::list<std::string> & colorant_list);

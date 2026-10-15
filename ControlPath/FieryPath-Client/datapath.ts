@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -96,7 +96,19 @@ export class DataPathSession
 
             this.m_data_path_clients.forEach((client) =>
             {
-                client.socket.send(message);
+                const ws = client.socket;
+                if (ws.readyState === WebSocket.OPEN)
+                {
+                    ws.send(message, (err) =>
+                    {
+                        if (err)
+                            this.logWarn(`Send failed to client with inks ${client.inks}: ${err instanceof Error ? err.message : String(err)}`);
+                    });
+                }
+                else
+                {
+                    this.logWarn(`Skipping send to non-OPEN client with inks ${client.inks}, state=${ws.readyState}`);
+                }
             });
         }
         else
@@ -118,54 +130,92 @@ export class DataPathSession
 
             this.wss = new WebSocket.Server({ port: this.m_port });
 
+            // Server lifecycle/error events (async errors won't be caught by try/catch)
+            this.wss.on('listening', () =>
+            {
+                this.logInfo(`Data Path Web Server listening on port: ${this.m_port}`);
+            });
+
+            this.wss.on('error', (err) =>
+            {
+                this.logError(`WebSocket server error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+            });
+
+            this.wss.on('close', () =>
+            {
+                this.logInfo('WebSocket server closed');
+            });
+
             this.wss.on('connection', (ws) =>
             {
+                // Per-socket error handler
+                ws.on('error', (err) =>
+                {
+                    this.logWarn(`Client socket error: ${err instanceof Error ? err.message : String(err)}`);
+                });
+
                 ws.on('message', (message) =>
                 {
-                    const data = JSON.parse(message.toString());
-
-                    switch (data.type)
+                    let data: any;
+                    try
                     {
-                        case 'connect':
-                            const inks = data.inks;
-                            this.m_data_path_clients.push({inks, socket: ws});
-                            this.logInfo(`Client connected with inks: ${inks}`);
-                            break;
+                        data = JSON.parse(message.toString());
+                    }
+                    catch (e)
+                    {
+                        this.logWarn(`Invalid JSON from client: ${message}`);
+                        return;
+                    }
 
-                        case 'printed':
-                            const uniqueId = data.jobId + "-" + data.imageId;
+                    try
+                    {
+                        switch (data.type)
+                        {
+                            case 'connect':
+                                const inks = data.inks;
+                                this.m_data_path_clients.push({ inks, socket: ws });
+                                this.logInfo(`Client connected with inks: ${inks}`);
+                                break;
 
-                            // Check if we have the required number of responses and if yes, invoke the callback, else update the map that keeps track of response count
-                            let count = 0;
-                            let deleteMap = false;
-                            if (this.m_unique_id_map.has(uniqueId))
-                            {
-                                count = this.m_unique_id_map.get(uniqueId) as number;
-                                deleteMap = true;
-                            }
+                            case 'printed':
+                                const uniqueId = data.jobId + "-" + data.imageId;
 
-                            // If we have the required number, then send a mesage and clear the map
-                            if (count + 1 >= this.m_data_path_clients.length)
-                            {
-                                if (this.m_eventCallback)
+                                // Check if we have the required number of responses and if yes, invoke the callback, else update the map that keeps track of response count
+                                let count = 0;
+                                let deleteMap = false;
+                                if (this.m_unique_id_map.has(uniqueId))
                                 {
-                                    const message = { method: "dataPathImagePrinted", jobId: data.jobId, imageId: data.imageId };
-                                    this.m_eventCallback(message.method, message, this.m_parent);
+                                    count = this.m_unique_id_map.get(uniqueId) as number;
+                                    deleteMap = true;
+                                }
+
+                                // If we have the required number, then send a mesage and clear the map
+                                if (count + 1 >= this.m_data_path_clients.length)
+                                {
+                                    if (this.m_eventCallback)
+                                    {
+                                        const message = { method: "dataPathImagePrinted", jobId: data.jobId, imageId: data.imageId };
+                                        this.m_eventCallback(message.method, message, this.m_parent);
+                                    }
+                                    else
+                                        this.logError("Event callback not setup to send dataPathImagePrinted event");
+
+                                    if (deleteMap)
+                                        this.m_unique_id_map.delete(uniqueId);
                                 }
                                 else
-                                    this.logError("Event callback not setup to send dataPathImagePrinted event");
+                                    this.m_unique_id_map.set(uniqueId, count + 1);
 
-                                if (deleteMap)
-                                    this.m_unique_id_map.delete(uniqueId);
-                            }
-                            else
-                                this.m_unique_id_map.set(uniqueId, count + 1);
+                                break;
 
-                            break;
-
-                        default:
-                            this.logError(`Message type ${data.type} not recognized`);
-                            break;
+                            default:
+                                this.logError(`Message type ${data.type} not recognized`);
+                                break;
+                        }
+                    }
+                    catch (err)
+                    {
+                        this.logError(`Error handling client message: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
                     }
                 });
 

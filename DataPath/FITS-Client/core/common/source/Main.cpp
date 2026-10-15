@@ -1,14 +1,10 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  (c) Copyright 1990-2023  Electronics for Imaging, Inc. ("EFI").     All Rights Reserved                                                                                       */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
-/*  EFI products contain certain trade secrets and confidential and proprietary information of EFI.  Use, reproduction, disclosure, distribution by any means  are prohibited,    */
-/*  except pursuant to a written license from EFI. Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works based on this        */
-/*  software are prohibited, except pursuant to a written license from EFI. Use of copyright notice does not imply publication or disclosure.                                     */
-/*                                                                                                                                                                                */
-/*  Restricted Rights Legend:                                                                                                                                                     */
-/*  Use, duplication, or disclosure by the Government is subject to restrictions as set forth in subparagraph (c)(1)(ii) of The Rights in Technical Data and Computer Software    */
-/*  clause in DFARS 252.227-7013 or subparagraphs (c)(1) and (2) of the Commercial Computer Software -- Restricted Rights at 48 CFR 52.227-19, as applicable.                     */
+/*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
+/*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
+/*  based on this software are prohibited, except pursuant to a written license from Fiery. Use of copyright notice does not imply publication or disclosure.                     */
 /*                                                                                                                                                                                */
 /**********************************************************************************************************************************************************************************/
 #include "FITS-ModuleApi.h"
@@ -16,6 +12,7 @@
 #include "ConfigController.h"
 #include "LogManager.h"
 
+#include <boost/algorithm/string.hpp>
 #include <boost/dll/import.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -37,7 +34,10 @@
 /**********************************************************************************************************************************************************************************/
 FIERY::FITS::CORE::CONFIG::CONTROLLER *   p_config_controller = nullptr;
 
-const std::string   VERSION = "1.0.6";
+const std::string   COMMAND_LINE_ARGUMENT_BIND                 = "-bind";
+const std::string   COMMAND_LINE_ARGUMENT_FITS_SERVER_IP       = "-ip_fits_server";
+const std::string   COMMAND_LINE_ARGUMENT_FIERY_PATH_CLIENT_IP = "-ip_fiery_path_client";
+const std::string   VERSION                                    = "1.6.3";
 
 
 /**********************************************************************************************************************************************************************************/
@@ -47,15 +47,13 @@ bool configurationGet(FIERY::FITS::MODULE::CONFIGURATION & configuration)
 {
     boost::property_tree::ptree   json_object;
 
-    boost::filesystem::path       path_current                 = boost::filesystem::current_path();
-    boost::filesystem::path       path_json_configuration_file = path_current / FIERY::FITS::MODULE::CONSTANT::FILENAME_CONFIGURATION_JSON;
-    bool                          successful                   = true;
+    bool                          successful = true;
 
 
     // attempt to "read" the JSON "configuration" FILE.
     try
     {
-        boost::property_tree::read_json(path_json_configuration_file.string(), json_object);
+        boost::property_tree::read_json(FIERY::FITS::MODULE::CONSTANT::FILENAME_CONFIGURATION_JSON, json_object);
     }
     catch (...)
     {
@@ -66,8 +64,8 @@ bool configurationGet(FIERY::FITS::MODULE::CONFIGURATION & configuration)
     if (successful)
     {
         // if so, initialize the return variables.
-        configuration.fits_properties.ip                   = json_object.get<std::string>("fits_server.ip", "");
-        configuration.fits_properties.port                 = json_object.get<uint32_t>("fits_server.port", 0);
+        configuration.fits_properties.ip                   = json_object.get<std::string>("fits_server.ip", FIERY::FITS::MODULE::CONSTANT::FITS_SERVER_IP_DEFAULT);
+        configuration.fits_properties.port                 = json_object.get<uint32_t>("fits_server.port", FIERY::FITS::MODULE::CONSTANT::FITS_SERVER_PORT_DEFAULT);
         configuration.log_properties.enable_console        = json_object.get<bool>("logging.console", false);
         configuration.log_properties.files_max             = json_object.get<uint32_t>("logging.max_files", 20);
         configuration.log_properties.size_max_in_megabytes = json_object.get<uint32_t>("logging.max_size_in_megabytes", 20);
@@ -168,19 +166,83 @@ bool linux_signal_handler_set(int signal_id)
 int main(int argc, char* argv[])
 {
     FIERY::FITS::MODULE::CONFIGURATION                configuration;
+    std::string                                       ip_fiery_path_client;
+    std::string                                       ip_fits_server;
     FIERY::FITS::MODULE::LOGGER                       logger(FIERY::FITS::CORE::LOG::MANAGER::LogInfo, FIERY::FITS::CORE::LOG::MANAGER::LogWarning, FIERY::FITS::CORE::LOG::MANAGER::LogError, FIERY::FITS::CORE::LOG::MANAGER::LogFatal);
     boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN>   p_module_plug_in;
 
-    boost::filesystem::path                           path_current        = boost::filesystem::current_path();
-    boost::filesystem::path                           path_module_plug_in = path_current / FITS_MODULE_PLUG_IN_NAME;
+    bool                                              bind                = false;
+    boost::filesystem::path                           path_module_plug_in = boost::filesystem::current_path() / FITS_MODULE_PLUG_IN_NAME;
     int                                               result              = -1;
 
+
+    // check to see if there are any "override" command line "arguments".
+    if (argc > 1)
+    {
+        std::string   argument;
+        std::string   value;
+
+        bool          invalid = false;
+
+
+        // loop through all the command line "arguments", attempting to "parse" them.
+        for (int index = 1; index < argc; index++)
+        {
+            // initialize the local variables.
+            argument = argv[index];
+            boost::algorithm::to_lower(argument);
+
+            // attempt to "process" the command line "argument", appropriately.
+            if (argument == COMMAND_LINE_ARGUMENT_BIND)
+            {
+                bind = true;
+            }
+            else
+            {
+                // initialize the local variables.
+                index++;
+
+                // check to see if the command line "value" is "valid".
+                if (index < argc)
+                {
+                    // if so, initialize the local variables.
+                    value = argv[index];
+                    boost::algorithm::to_lower(value);
+
+                    if (argument == COMMAND_LINE_ARGUMENT_FITS_SERVER_IP)
+                    {
+                        ip_fits_server = value;
+                    }
+                    else if (argument == COMMAND_LINE_ARGUMENT_FIERY_PATH_CLIENT_IP)
+                    {
+                        ip_fiery_path_client = value;
+                    }
+                    else
+                    {
+                        invalid = true;
+                    }
+                }
+                else
+                {
+                    invalid = true;
+                }
+            }
+
+            // check to see if the command line "arguments" are "valid" -- if not, return immediately. 
+            if (invalid)
+            {
+                std::cout << "\nFITS-client [" << COMMAND_LINE_ARGUMENT_BIND << "] [" << COMMAND_LINE_ARGUMENT_FITS_SERVER_IP << " <IP address>] [" <<
+                            COMMAND_LINE_ARGUMENT_FIERY_PATH_CLIENT_IP << " <IP address>]" << std::endl;
+                return(result);
+            }
+        }
+    }
 
     // attempt to "get" the CONFIGURATION.
     if (configurationGet(configuration))
     {
         // if successful, attempt to "initialize" the LOGGING.
-        FIERY::FITS::CORE::LOG::MANAGER::Initialize(argv[0], "FITS-Client", path_current, configuration.log_properties);
+        FIERY::FITS::CORE::LOG::MANAGER::Initialize(argv[0], L"FITS-Client", configuration.log_properties);
         FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client: Version " + VERSION);
 
 #if (defined(_WIN32))
@@ -205,6 +267,22 @@ int main(int argc, char* argv[])
         }
 #endif // _WIN32
 
+        // check to see we need to "override" the FITS-Server "ip" -- if so, do it.
+        if (!ip_fits_server.empty())
+        {
+            FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client: OVERRIDING (IP = <" + ip_fits_server + ">)");
+
+            configuration.fits_properties.ip = ip_fits_server;
+        }
+
+        // check to see we need to "override" the FITS-Server "bind" -- if so, do it.
+        if (bind)
+        {
+            FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client: OVERRIDING (BIND)");
+
+            configuration.fits_properties.bind_to_similar_local_ip = bind;
+        }
+
         FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client[FITS-Module]", true);
 
         try
@@ -214,24 +292,37 @@ int main(int argc, char* argv[])
         }
         catch (std::exception const & exception)
         {
-            FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[FITS-Module]: Failed to load FITS-MODULE plug-in (File = " + path_module_plug_in.string() + ")");
+            FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[FITS-Module]: Failed to load FITS-MODULE plug-in (File = " + path_module_plug_in.string() + ", Reason = " +
+                        exception.what() + ")");
             throw(exception);
         }
 
         // attempt to "initialize" the FITS-MODULE "plug-in".
-        if (p_module_plug_in->Initialize(logger))
+        if (p_module_plug_in->Initialize(logger, ip_fiery_path_client))
         {
-            // if successful, attempt to "create" the CONFIG_CONTROLLER.
-            if ((p_config_controller = new FIERY::FITS::CORE::CONFIG::CONTROLLER(configuration.fits_properties, p_module_plug_in)) != nullptr)
+            // if successful, check to see if the FITS_PROPERTIES are valid.
+            if (configuration.fits_properties.ip.empty())
             {
-                FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client: STARTED");
-
-                // if successful, attempt to "start" the CONFIG_CONTROLLER.
-                result = p_config_controller->Start();
+                FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[Configuration]: INVALID IP", true);
+            }
+            else if (configuration.fits_properties.port == 0)
+            {
+                FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[Configuration]: INVALID Port", true);
             }
             else
             {
-                FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[Configuration]: FAILED", true);
+                // if so, attempt to "create" the CONFIG_CONTROLLER.
+                if ((p_config_controller = new FIERY::FITS::CORE::CONFIG::CONTROLLER(configuration.fits_properties, p_module_plug_in)) != nullptr)
+                {
+                    FIERY::FITS::CORE::LOG::MANAGER::LogInfo("FITS-Client: STARTED");
+
+                    // if successful, attempt to "start" the CONFIG_CONTROLLER.
+                    result = p_config_controller->Start();
+                }
+                else
+                {
+                    FIERY::FITS::CORE::LOG::MANAGER::LogError("FITS-Client[Configuration]: FAILED", true);
+                }
             }
         }
         else

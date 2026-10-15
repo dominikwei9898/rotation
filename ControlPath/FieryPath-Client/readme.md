@@ -15,15 +15,17 @@ This client implements a subset of Fiery Path API to demonstrate basic usage. Th
 
 ## Requirements
 
+If the package did not already have Node, you need:
 1. Node.js version 18.16.0 or later
 2. NPM version 9.5.1 or later (NPM will be installed with Node.js)
 
 
 ## Installation
 
+If the package did not already have node_modules:
 1. On a command-line where the source is copied, run "npm install"
 
-This will download all the necessary node_modules required to run the client
+This will download all the necessary node_modules required to run the client. 
 
 
 ## Sources
@@ -47,9 +49,11 @@ The corresponding JavaScript files, generated from the TypeScript files (app.js,
 
 ## Productization
 
-To productize this code, consider the following 2 actions:
+If you are using the DataXPress installer, then the credentials will be stored securley, The client will be setup to retreive these credentials automatically since it will be running as a service with -embedded option
+
+If you are using a different installer, then the credentials will need to be provided as command-line options.
 1. Encrypt credentials (username, password and accessrights) and decrypt them in app.ts
-2. Obfuscate the generated JavaScript files into a single JavaScript file. Webpack can be used for this purpose 
+2. Obfuscate the generated JavaScript files into a single JavaScript file if necessary. Webpack can be used for this purpose 
 
 
 ## Building/Running/Debugging (Visual Studio 2022)

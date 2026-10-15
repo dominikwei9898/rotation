@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -13,6 +13,9 @@
 #include "LogManager.h"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/property_tree/json_parser.hpp>
+
+#include <sstream>
 
 using namespace FIERY::FITS::MODULE::TRANSFER;
 
@@ -30,9 +33,9 @@ using namespace FIERY::FITS::MODULE::TRANSFER;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
-REQUEST::REQUEST(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list) :
-            m_colorant_requested_list(colorant_list), m_count(0), m_count_maximum(colorant_list.size()), m_count_signal(), m_image_id(image_id), m_job_id(job_id),
-            m_job_name(job_name), m_mutex()
+REQUEST::REQUEST(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, const boost::property_tree::ptree & json_object_settings) :
+            m_colorant_requested_list(colorant_list), m_count(0), m_count_maximum(colorant_list.size()), m_count_signal(), m_image_id(image_id),
+            m_image_settings(json_object_settings), m_job_id(job_id), m_job_name(job_name), m_mutex()
 {
     ;
 }
@@ -132,6 +135,33 @@ MANAGER::~MANAGER()
     ;
 }
 
+bool MANAGER::Abort(void)
+{
+    bool   successful = true;
+
+
+    // attempt to "take" the REQUEST "mutex".
+    std::lock_guard<std::mutex>   lock(m_request_mutex);
+
+    // check to see if the REQUEST "list" is "valid".
+    if (!m_request_list.empty())
+    {
+        // if so, attempt to "remove" and "deallocate" all REQUESTs.
+        m_request_list.remove_if([](auto & entry)
+        {
+            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module: REQUEST ABORTED (JobId = " + entry->JobIdGet() + ", ImageId = " + entry->ImageIdGet() + ")");
+
+            // return the status.
+            return(true);
+        });
+    }
+
+    FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module: REQUEST ABORTED (Length = " + std::to_string(m_request_list.size()) + ")");
+
+    // return the status.
+    return(successful);
+}
+
 bool MANAGER::JobCancel(const std::string & job_id)
 {
     bool   successful = true;
@@ -207,7 +237,7 @@ bool MANAGER::Stop(void)
     return(successful);
 }
 
-bool MANAGER::RequestCreate(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, REQUEST * & p_request)
+bool MANAGER::RequestCreate(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, const boost::property_tree::ptree & json_object_settings, REQUEST * & p_request)
 {
     bool   successful = false;
 
@@ -216,16 +246,30 @@ bool MANAGER::RequestCreate(const std::string & job_id, const std::string & job_
     if (!FIERY::FITS::MODULE::COLORANT::MANAGER::IsJobCanceled(job_id))
     {
         // if not, attempt to "create" the REQUEST.
-        if ((p_request = new REQUEST(job_id, job_name, image_id, colorant_list)) != nullptr)
+        if ((p_request = new REQUEST(job_id, job_name, image_id, colorant_list, json_object_settings)) != nullptr)
         {
-            // if successful, attempt to "take" the REQUEST "mutex".
+            std::string          settings_string;
+            std::ostringstream   ostring_stream;
+
+
+            // if successful, initialize the local variables.
+            boost::property_tree::json_parser::write_json(ostring_stream, json_object_settings, false);
+            settings_string = ostring_stream.str();
+
+            // attempt to "delete" the trailing newline (if it exists).
+            if (!settings_string.empty() && (settings_string.back() == '\n'))
+            {
+                settings_string.pop_back();
+            }
+
+            // attempt to "take" the REQUEST "mutex".
             std::lock_guard<std::mutex>   lock(m_request_mutex);
 
             // attempt to "add" the REQUEST to the REQUEST "list".
             m_request_list.push_back(p_request);
 
             FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module: PRINT (JobId = " + job_id + ", ImageId = " + image_id + ", Colorants = <" +
-                        boost::algorithm::join(colorant_list, ",") + ">, Length = " + std::to_string(m_request_list.size()) + ")");
+                        boost::algorithm::join(colorant_list, ",") + ">, Settings = <" + settings_string + ">, Length = " + std::to_string(m_request_list.size()) + ")");
 
             // attempt to "signal" the change.
             m_request_signal.notify_all();

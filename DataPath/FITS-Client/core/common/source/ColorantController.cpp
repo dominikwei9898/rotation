@@ -1,14 +1,10 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  (c) Copyright 1990-2023  Electronics for Imaging, Inc. ("EFI").     All Rights Reserved                                                                                       */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
-/*  EFI products contain certain trade secrets and confidential and proprietary information of EFI.  Use, reproduction, disclosure, distribution by any means  are prohibited,    */
-/*  except pursuant to a written license from EFI. Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works based on this        */
-/*  software are prohibited, except pursuant to a written license from EFI. Use of copyright notice does not imply publication or disclosure.                                     */
-/*                                                                                                                                                                                */
-/*  Restricted Rights Legend:                                                                                                                                                     */
-/*  Use, duplication, or disclosure by the Government is subject to restrictions as set forth in subparagraph (c)(1)(ii) of The Rights in Technical Data and Computer Software    */
-/*  clause in DFARS 252.227-7013 or subparagraphs (c)(1) and (2) of the Commercial Computer Software -- Restricted Rights at 48 CFR 52.227-19, as applicable.                     */
+/*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
+/*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
+/*  based on this software are prohibited, except pursuant to a written license from Fiery. Use of copyright notice does not imply publication or disclosure.                     */
 /*                                                                                                                                                                                */
 /**********************************************************************************************************************************************************************************/
 #include "ColorantController.h"
@@ -32,9 +28,9 @@ const uint32_t   CONTROLLER::SLEEP_IN_SECONDS_CONNECT = 5;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
-CONTROLLER::CONTROLLER(const std::string & ip, const uint16_t & port, const std::string & colorant, boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN> & p_module_plug_in) :
-            m_buffer_fits_header_length(FITS_HEADER_LENGTH), m_colorant(colorant), m_connected(false), m_enabled(true), m_ip(ip), m_p_module_plug_in(p_module_plug_in),
-            m_port(port), m_socket_controller(nullptr), m_thread()
+CONTROLLER::CONTROLLER(const std::string & ip, const uint16_t & port, const std::string & ip_local_bind, const std::string & colorant, boost::shared_ptr<FIERY::FITS::MODULE::PLUG_IN> & p_module_plug_in) :
+            m_buffer_fits_header_length(FITS_HEADER_LENGTH), m_colorant(colorant), m_connected(false), m_enabled(true), m_ip(ip), m_ip_local_bind(ip_local_bind),
+            m_p_module_plug_in(p_module_plug_in), m_port(port), m_socket_controller(nullptr), m_thread()
 {
 }
 
@@ -81,7 +77,7 @@ bool CONTROLLER::connect(void)
     while (!connected)
     {
         // attempt to "connect" the SOCKET::CONTROLLER.
-        if (!(connected = m_socket_controller->Connect(m_ip, m_port, error)))
+        if (!(connected = m_socket_controller->Connect(m_ip, m_port, m_ip_local_bind, error)))
         {
             // check to see we need to "log" the "error" -- if so, do it.
             if (!connection_error_logged)
@@ -132,8 +128,6 @@ void CONTROLLER::run()
                 }
                 else if (return_status == FIERY::FITS::CORE::SOCKET::CONTROLLER_ERROR::SOCKET_CLOSED)
                 {
-                    LOG::MANAGER::LogInfo("SOCKET[" + m_colorant + "]: CLOSED");
-
                     // update the "management" variables.
                     m_connected = false;
                 }

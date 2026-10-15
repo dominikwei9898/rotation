@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -25,12 +25,15 @@ using namespace FIERY::FITS::MODULE;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                local variables                                                                                 */
 /**********************************************************************************************************************************************************************************/
+const uint32_t      MANAGER::BUFFER_POOL_SIZE_PER_COLORANT_IN_MEGABYTES_DEFAULT = 2048;
+const std::string   MANAGER::FIERY_PATH_CLIENT_IP_DEFAULT                       = "127.0.0.1";
+const uint32_t      MANAGER::FIERY_PATH_CLIENT_PORT_DEFAULT                     = 9085;
 
 
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
-MANAGER::MANAGER() : m_colorant_properties(), m_fiery_path_server_properties(), m_fits_output_plugin_name(), m_logger(), m_web_socket_mgr()
+MANAGER::MANAGER() : m_colorant_properties(), m_fiery_path_client_properties(), m_fits_output_plugin_name(), m_logger(), m_rotation_properties(), m_web_socket_mgr()
 {
     ;
 }
@@ -40,13 +43,45 @@ MANAGER::~MANAGER()
     ;
 }
 
+bool MANAGER::Abort(void)
+{
+    bool   successful = false;
+
+
+    FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("ABORT");
+
+    // attempt to "abort" all known IMAGE_PROPERTIES.
+    FIERY::FITS::MODULE::IMAGE::PROPERTIES::MANAGER::Abort();
+
+    // attempt to "abort" all known JOBs.
+    successful = FIERY::FITS::MODULE::COLORANT::MANAGER::Abort();
+
+    // return the status.
+    return(successful);
+}
+
 bool MANAGER::ImagePrinted(const std::string & job_id, const std::string & image_id)
 {
     bool   successful = false;
 
 
+    // attempt to "delete" the IMAGE_PROPERTIES.
+    FIERY::FITS::MODULE::IMAGE::PROPERTIES::MANAGER::ImagePropertiesDelete(job_id, image_id);
+
     // attempt to "send" IMAGE_PRINTED to the WEB_SOCKET "manager".
     successful = m_web_socket_mgr.ImagePrinted(job_id, image_id);
+
+    // return the status.
+    return(successful);
+}
+
+bool MANAGER::ImagePropertiesCreate(const std::string & job_id, const std::string & image_id, const boost::property_tree::ptree & json_object_settings)
+{
+    bool   successful = false;
+
+
+    // attempt to "create" the IMAGE_PROPERTIES.
+    successful = FIERY::FITS::MODULE::IMAGE::PROPERTIES::MANAGER::ImagePropertiesCreate(job_id, image_id, json_object_settings);
 
     // return the status.
     return(successful);
@@ -64,19 +99,19 @@ bool MANAGER::ImageSave(const FIERY::FITS::MODULE::PROPERTIES::IMAGE & image_pro
     return(successful);
 }
 
-bool MANAGER::ImageTransfer(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list_valid)
+bool MANAGER::ImageTransfer(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list_valid, const boost::property_tree::ptree & json_object_settings)
 {
     bool   successful = false;
 
 
     // attempt to "transfer" the IMAGE.
-    successful = FIERY::FITS::MODULE::COLORANT::MANAGER::ImageTransfer(job_id, job_name, image_id, colorant_list_valid);
+    successful = FIERY::FITS::MODULE::COLORANT::MANAGER::ImageTransfer(job_id, job_name, image_id, colorant_list_valid, json_object_settings);
 
     // return the status.
     return(successful);
 }
 
-bool MANAGER::Initialize(const FIERY::FITS::MODULE::LOGGER & logger)
+bool MANAGER::Initialize(const FIERY::FITS::MODULE::LOGGER & logger, const std::string & ip_fiery_path_client_override)
 {
     bool   successful = false;
 
@@ -84,11 +119,11 @@ bool MANAGER::Initialize(const FIERY::FITS::MODULE::LOGGER & logger)
     // update the "management" variables.
     m_logger = logger;
 
-    // update the "initialize" the LOG_MANAGER.
+    // attempt to "initialize" the LOG_MANAGER.
     FIERY::FITS::MODULE::LOG::MANAGER::Initialize(m_logger);
 
     // attempt to "get" the "configuration".
-    if (configurationGet())
+    if (configurationGet(ip_fiery_path_client_override))
     {
         FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[Initialize]: COMPLETED");
 
@@ -107,6 +142,9 @@ bool MANAGER::JobCancel(const std::string & job_id)
 
     FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("CANCEL (JobId = " + job_id + ")");
 
+    // attempt to "cancel" all known IMAGE_PROPERTIES associated with the given JOB.
+    FIERY::FITS::MODULE::IMAGE::PROPERTIES::MANAGER::JobCancel(job_id);
+
     // attempt to "cancel" the JOB.
     successful = FIERY::FITS::MODULE::COLORANT::MANAGER::JobCancel(job_id);
 
@@ -123,10 +161,10 @@ bool MANAGER::Start(const std::list<std::string> & colorant_list)
     m_colorant_properties.colorant_list = colorant_list;
 
     // attempt to "start" the COLORANT "manager".
-    if (FIERY::FITS::MODULE::COLORANT::MANAGER::Start(this, m_colorant_properties, m_fits_output_plugin_name))
+    if (FIERY::FITS::MODULE::COLORANT::MANAGER::Start(this, m_colorant_properties, m_fits_output_plugin_name, m_rotation_properties))
     {
         // if successful, attempt to "start" the WEB_SOCKET "manager".
-        successful = m_web_socket_mgr.Start(this, m_fiery_path_server_properties);
+        successful = m_web_socket_mgr.Start(this, m_fiery_path_client_properties);
     }
 
     // check to see if everything was successful.
@@ -161,19 +199,17 @@ bool MANAGER::Stop(void)
     return(successful);
 }
 
-bool MANAGER::configurationGet(void)
+bool MANAGER::configurationGet(const std::string & ip_fiery_path_client_override)
 {
     boost::property_tree::ptree   json_object;
 
-    boost::filesystem::path       path_current                 = boost::filesystem::current_path();
-    boost::filesystem::path       path_json_configuration_file = path_current / FIERY::FITS::MODULE::CONSTANT::FILENAME_CONFIGURATION_JSON;
-    bool                          successful                   = true;
+    bool                          successful = true;
 
 
     // attempt to "read" the JSON "configuration" FILE.
     try
     {
-        boost::property_tree::read_json(path_json_configuration_file.string(), json_object);
+        boost::property_tree::read_json(FIERY::FITS::MODULE::CONSTANT::FILENAME_CONFIGURATION_JSON, json_object);
     }
     catch (...)
     {
@@ -185,10 +221,21 @@ bool MANAGER::configurationGet(void)
     if (successful)
     {
         // if so, update the "management" variables.
-        m_colorant_properties.buffer_pool_size_in_bytes = json_object.get<uint64_t>("colorant.buffer_pool_size_in_megabytes", 0) * 1024 * 1024;
-        m_fiery_path_server_properties.ip               = json_object.get<std::string>("fiery_path_client.ip", "");
-        m_fiery_path_server_properties.port             = json_object.get<uint32_t>("fiery_path_client.port", 0);
-        m_fits_output_plugin_name                       = json_object.get<std::string>("output.plugin", "");
+        m_colorant_properties.buffer_pool_delayed_allocate = json_object.get<bool>("colorant.buffer_pool_delayed_allocate", false);
+        m_colorant_properties.buffer_pool_size_in_bytes    = json_object.get<uint64_t>("colorant.buffer_pool_size_in_megabytes",
+                    BUFFER_POOL_SIZE_PER_COLORANT_IN_MEGABYTES_DEFAULT) * 1024 * 1024;
+        m_fiery_path_client_properties.ip                  = json_object.get<std::string>("fiery_path_client.ip", FIERY_PATH_CLIENT_IP_DEFAULT);
+        m_fiery_path_client_properties.port                = json_object.get<uint32_t>("fiery_path_client.port", FIERY_PATH_CLIENT_PORT_DEFAULT);
+        m_fits_output_plugin_name                          = json_object.get<std::string>("output.plugin", "");
+        m_rotation_properties.enabled                      = json_object.get<bool>("rotation.enabled", false);
+        m_rotation_properties.degrees                      = json_object.get<uint32_t>("rotation.degrees", 0);
+
+        // check to see we need to "override" the FieryPath "ip" -- if so, do it.
+        if (!ip_fiery_path_client_override.empty())
+        {
+            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[Configuration]: OVERRIDING (IP = <" + ip_fiery_path_client_override + ">)");
+            m_fiery_path_client_properties.ip = ip_fiery_path_client_override;
+        }
 
         // check to see if the "management" variables are "valid" -- if not, update the status.
         if (m_colorant_properties.buffer_pool_size_in_bytes == 0)
@@ -196,19 +243,25 @@ bool MANAGER::configurationGet(void)
             FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID Colorant Buffer Size", true);
             successful = false;
         }
-        else if (m_fiery_path_server_properties.ip.empty() || (m_fiery_path_server_properties.ip == ""))
+        else if (m_fiery_path_client_properties.ip.empty())
         {
-            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID FieryPath IP", true);
+            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID FieryPath-Client IP", true);
             successful = false;
         }
-        else if (m_fiery_path_server_properties.port == 0)
+        else if (m_fiery_path_client_properties.port == 0)
         {
-            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID FieryPath Port", true);
+            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID FieryPath-Client Port", true);
             successful = false;
         }
-        else if (m_fits_output_plugin_name.empty() || (m_fits_output_plugin_name == ""))
+        else if (m_fits_output_plugin_name.empty())
         {
             FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID Output Plugin", true);
+            successful = false;
+        }
+        else if (m_rotation_properties.enabled && (m_rotation_properties.degrees != 0) && (m_rotation_properties.degrees != 90) && (m_rotation_properties.degrees != 180) && (m_rotation_properties.degrees != 270))
+        {
+            FIERY::FITS::MODULE::LOG::MANAGER::LogError("FITS-Module[Configuration]: INVALID Rotation Degrees (Degrees = " +
+                        std::to_string(m_rotation_properties.degrees) + ") -- MUST be 0, 90, 180, or 270", true);
             successful = false;
         }
     }

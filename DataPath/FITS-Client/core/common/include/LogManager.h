@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -19,6 +19,7 @@
 #include <boost/filesystem/path.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -39,7 +40,7 @@ namespace FIERY
                 {
                     public:
                     // public static "management" methods.
-                    static bool Initialize(const std::string & application, const std::string & filename_base, const boost::filesystem::path & path_base, const FIERY::FITS::MODULE::PROPERTIES::LOG & log_properties);
+                    static bool Initialize(const std::string & application, const std::wstring & filename_base, const FIERY::FITS::MODULE::PROPERTIES::LOG & log_properties);
 
                     // public static "accessor" methods.
                     static void LogError(const std::string & message, const bool & console_log = false);
@@ -57,17 +58,17 @@ namespace FIERY
 
                     // private static "helper" methods.
                     static void DirectoryCleanup(void);
-                    static void DirectoryCleanupFiles(const std::string & filename_base);
+                    static void DirectoryCleanupFiles(const std::wstring & filename_base);
 
                     // private static "management" variables.
                     static std::mutex                                       m_directory_cleanup_mutex;
                     static std::chrono::high_resolution_clock::time_point   m_directory_cleanup_time_point_previous;
                     static bool                                             m_initialized;
-                    static std::string                                      m_filename_base_error;
-                    static std::string                                      m_filename_base_fatal;
-                    static std::string                                      m_filename_base_info;
-                    static std::string                                      m_filename_base_warning;
-                    static std::string                                      m_filepath_directory;
+                    static std::wstring                                     m_filename_base_error;
+                    static std::wstring                                     m_filename_base_fatal;
+                    static std::wstring                                     m_filename_base_info;
+                    static std::wstring                                     m_filename_base_warning;
+                    static std::wstring                                     m_filepath_directory;
                     static FIERY::FITS::MODULE::PROPERTIES::LOG             m_log_properties;
 
                     // private static "management" const.

@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -44,7 +44,7 @@ namespace FIERY
                 {
                     public:
                     // public constructors and destructor.
-                    REQUEST(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list);
+                    REQUEST(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, const boost::property_tree::ptree & json_object_settings);
                     virtual ~REQUEST();
 
                     // public "management" methods.
@@ -55,19 +55,21 @@ namespace FIERY
                     // public "accessor" methods.
                     const std::list<std::string> & ColorantListGet(void) const { return(m_colorant_requested_list); };
                     const std::string & ImageIdGet(void) const { return(m_image_id); };
+                    const boost::property_tree::ptree & ImageSettingsGet(void) const { return(m_image_settings); };
                     const std::string & JobIdGet(void) const { return(m_job_id); };
                     const std::string & JobNameGet(void) const { return(m_job_name); };
 
 
                     private:
-                    std::list<std::string>    m_colorant_requested_list;
-                    uint64_t                  m_count;
-                    uint64_t                  m_count_maximum;
-                    std::condition_variable   m_count_signal;
-                    std::string               m_image_id;
-                    std::string               m_job_id;
-                    std::string               m_job_name;
-                    std::mutex                m_mutex;
+                    std::list<std::string>        m_colorant_requested_list;
+                    uint64_t                      m_count;
+                    uint64_t                      m_count_maximum;
+                    std::condition_variable       m_count_signal;
+                    std::string                   m_image_id;
+                    boost::property_tree::ptree   m_image_settings;
+                    std::string                   m_job_id;
+                    std::string                   m_job_name;
+                    std::mutex                    m_mutex;
                 };
 
                 class MANAGER
@@ -82,10 +84,11 @@ namespace FIERY
                     bool Stop(void);
 
                     // public JOB "management" methods.
+                    bool Abort(void);
                     bool JobCancel(const std::string & job_id);
 
                     // public static REQUEST "management" methods.
-                    bool RequestCreate(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, REQUEST * & p_request);
+                    bool RequestCreate(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list, const boost::property_tree::ptree & json_object_settings, REQUEST * & p_request);
 
 
                     private:

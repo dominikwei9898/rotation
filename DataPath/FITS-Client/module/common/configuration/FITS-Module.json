@@ -1,11 +1,55 @@
 {
-	"colorant": {"buffer_pool_size_in_megabytes": 2048},
-	"fiery_path_client": {"ip": "127.0.0.1", "port": 9085},
-	"fits_server": {"ip": "127.0.0.1"},
-	"logging": {"console": false, "max_files": 20, "max_size_in_megabytes": 10},
-	"output": {"plugin": "FITS-Output-Raw"},
-	"output_raw": {"file_enabled": false, "job_name_enabled": false, "page_number_enabled": false},
-	"output_tiff": {"file_enabled": false, "job_name_enabled": false, "page_number_enabled": false},
-	"output_prn": {"file_enabled": false, "job_name_enabled": false, "page_number_enabled": false},
-	"output_simulator": {"transfer_time_in_milliseconds": 0, "images_per_minute": 0}
+    "colorant": {
+        "buffer_pool_delayed_allocate": true,
+        "buffer_pool_size_in_megabytes": 2048
+    },
+    "fiery_path_client": {
+        "ip": "127.0.0.1",
+        "port": 9085
+    },
+    "fits_server": {
+        "ip": "127.0.0.1",
+        "port": 9210
+    },
+    "logging": {
+        "console": false,
+        "max_files": 20,
+        "max_size_in_megabytes": 10
+    },
+    "output": {
+        "plugin": "FITS-Output-Raw"
+    },
+    "output_prn": {
+        "colorant_accumulator_enabled": true,
+        "colorant_accumulator_order": "",
+        "directory": "",
+        "file_enabled": false,
+        "job_directory_enabled": false,
+        "job_name_enabled": false,
+        "page_number_enabled": false
+    },
+    "output_raw": {
+        "directory": "",
+        "file_enabled": false,
+        "image_process_enabled": false,
+        "job_directory_enabled": false,
+        "job_name_enabled": false,
+        "page_number_enabled": false
+    },
+    "output_simulator": {
+        "colorant_accumulator_enabled": false,
+        "transfer_time_in_milliseconds": 0,
+        "images_per_minute": 0
+    },
+    "output_tiff": {
+        "directory": "",
+        "file_enabled": false,
+        "job_directory_enabled": false,
+        "job_name_enabled": false,
+        "page_number_enabled": false
+    },
+    "rotation": {
+        "degrees": 0,
+        "enabled": false
+    }
 }

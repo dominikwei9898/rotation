@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -9,11 +9,12 @@
 /**********************************************************************************************************************************************************************************/
 
 import * as winston from 'winston';
-import { resolve } from 'path';
+import { resolve, dirname, join } from 'path';
 import * as fs from 'fs';
 import { Command } from 'commander';
-
 import moment from 'moment';
+import { spawnSync } from 'child_process';
+import { PrinterIfc } from './printer';
 
 ///////////////////////////////////////////////////////////////////////////////////
 // Command-line Parameters
@@ -21,27 +22,6 @@ import moment from 'moment';
 
 const program = new Command();
 program.parse(process.argv);
-
-// Get all key-value pairs passed via the command line. Command-line parameters need to be passed in as "key1=value1 key2=value2" format
-const keyValuePairs = program.args.map((arg) =>
-{
-    const key = arg.substring(0, arg.indexOf('='));
-    const value = arg.substring(arg.indexOf('=') + 1);
-    return { key, value };
-});
-
-// These are the required command-line parameters. ip is the Fiery server IP address, username/password/accessrigts are required for login access 
-const requiredKeys = ['ip', 'username', 'password', 'accessrights'];
-
-// Check if all required parameters are present
-const missingKeys = requiredKeys.filter((key) => !keyValuePairs.some((pair) => pair.key === key));
-
-// If not, display message and exit
-if (missingKeys.length > 0 || program.args.length === 0)
-{
-    console.error('Error: Missing required parameters. Please provide values for ip, username, password and accessrights in the format ip=value1 username=value2 password=value3 accessrights=value4.');
-    process.exit(1);
-}
 
 // All required parameters are provided, we can continue. Define an object to hold command-line parameters
 export interface CommandLineParams
@@ -58,28 +38,12 @@ const m_settings: CommandLineParams =
     'log-console': false                                        // Log to console or not
 };
 
-// Apply command-line overrides if any are provided
-keyValuePairs.forEach(({ key, value }) =>
-{
-    m_settings[key] = value as string | number;
-});
-
-// Do not allow required parameters to be empty
-for (const key of requiredKeys)
-{
-    let strValue = m_settings[key] as string
-    if (strValue.length === 0)
-    {
-        console.error(`Error: Required parameter ${key} cannot be empty`);
-        process.exit(1);
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////////
 // Winston Logging
 ///////////////////////////////////////////////////////////////////////////////////
 
-if (!fs.existsSync(resolve(__dirname, './logs'))) {
+if (!fs.existsSync(resolve(__dirname, './logs'))) 
+{
     fs.mkdirSync(resolve(__dirname, './logs'));
 }
 
@@ -118,11 +82,134 @@ winston.info("------------------------------------------------------------------
 winston.info("------------------------------------------------------" + "Starting Fiery Path Printer Client at " + (moment().format("YYYY/MM/DD HH:mm:ss")) + "----------------------------------------------------");
 winston.info("-----------------------------------------------------------------------------------------------------------------------------------------------------");
 
+// Get all key-value pairs passed via the command line. Command-line parameters need to be passed in as "key1=value1 key2=value2" format
+const keyValuePairs = program.args.map((arg) =>
+{
+    const key = arg.substring(0, arg.indexOf('='));
+    const value = arg.substring(arg.indexOf('=') + 1);
+    return { key, value };
+});
+
+// These are the required command-line parameters. ip is the Fiery server IP address, username/password/accessrigts are required for login access 
+const requiredKeys = ['ip', 'username', 'password', 'accessrights'];
+const embeddedKey = 'embedded';
+
+// Helper to check for embedded mode
+const isEmbedded = keyValuePairs.length === 1 && keyValuePairs[0].key === embeddedKey && keyValuePairs[0].value === 'true';
+
+// Helper to check for all required keys
+const hasAllRequired = requiredKeys.every((key) => keyValuePairs.some((pair) => pair.key === key));
+
+// Error handling for invalid parameter combinations
+if (!(isEmbedded || hasAllRequired)) 
+{
+    const errorMsg =
+        'Error: Invalid parameters. Provide either:\n' +
+        '  1. All of ip, username, password, accessrights in the format ip=value1 username=value2 password=value3 accessrights=value4\n' +
+        '  2. Or just embedded=true';
+    winston.error(errorMsg);
+    console.error(errorMsg);
+    process.exit(1);
+}
+
+// If embedded, retrieve credentials from CredTool.exe
+let continueProcessing = true;
+if (isEmbedded) 
+{
+    // Possible locations for CredTool.exe if installed via DataXPress
+    const exeNames = [
+        resolve(__dirname, 'CredTool.exe'),
+        resolve(__dirname, '../../DataXPress-install/CredTool.exe')
+    ];
+
+    let credResult: any = null;
+    for (const exePath of exeNames) 
+    {
+        if (fs.existsSync(exePath)) 
+        {
+            const result = spawnSync(exePath, ['-get'], { encoding: 'utf8' });
+            if (result.status === 0 && result.stdout) 
+            {
+                try 
+                {
+                    credResult = JSON.parse(result.stdout);
+                    break;
+                }
+                catch (err)
+                {
+                    // Try next location
+                    winston.error(`Failed to parse credentials from CredTool at ${exePath}: ${err}`);
+                }
+            }
+        }
+    }
+
+    if (!credResult || !credResult.ip || !credResult.username || !credResult.password || !credResult.key) 
+    {
+        const errorMsg = 'Unable to retrieve credentials';
+        winston.error(errorMsg);
+        console.error(errorMsg);
+
+        continueProcessing = false;
+    }
+    else
+    {
+        // Map JSON keys to required keys
+        m_settings['ip'] = credResult.ip;
+        m_settings['username'] = credResult.username;
+        m_settings['password'] = credResult.password;
+        m_settings['accessrights'] = credResult.key;
+        winston.info('Credentials retrieved');
+    }
+}
+else
+{
+    // Apply command-line overrides
+    keyValuePairs.forEach(({ key, value }) => 
+    {
+        m_settings[key] = value as string | number;
+    });
+
+    // Do not allow required parameters to be empty
+    for (const key of requiredKeys) 
+    {
+        let strValue = m_settings[key] as string;
+        if (!strValue || strValue.length === 0) 
+        {
+            const errorMsg = `Error: Required parameter ${key} cannot be empty`;
+            winston.error(errorMsg);
+            console.error(errorMsg);
+
+            continueProcessing = false;
+            break;
+        }
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 // Printer Interface
 ///////////////////////////////////////////////////////////////////////////////////
 
-import { PrinterIfc } from './printer';
-const m_printer_ifc = new PrinterIfc(m_settings);
+if (continueProcessing)
+{
+    winston.info(`Connecting to Fiery Server ${m_settings['ip']}`);
+    const m_printer_ifc = new PrinterIfc(m_settings);
+}
+else
+{
+    winston.error('Exiting due to invalid parameters...');
+    console.error('Exiting due to invalid parameters...');
 
+    // Flush Winston logs before exiting
+    Object.keys(winston.transports).forEach((key) => 
+    {
+        const transport = (winston as any).transports[key];
+        if (transport && transport.close) 
+        {
+            transport.close();
+        }
+    });
 
+    // Give Winston a moment to flush
+    setTimeout(() => process.exit(1), 100);
+}

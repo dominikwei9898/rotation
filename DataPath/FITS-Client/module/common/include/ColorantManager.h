@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -50,7 +50,7 @@ namespace FIERY
                 {
                     public:
                     // public constructors and destructor.
-                    COLORANT(const std::string & colorant, const FIERY::FITS::MODULE::PROPERTIES::COLORANT & colorant_properties, const boost::shared_ptr<FIERY::FITS::OUTPUT::PLUG_IN> & p_output_plug_in, const FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT & output_properties);
+                    COLORANT(const std::string & colorant, const FIERY::FITS::MODULE::PROPERTIES::COLORANT & colorant_properties, const boost::shared_ptr<FIERY::FITS::OUTPUT::PLUG_IN> & p_output_plug_in, const FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT & output_properties, const FIERY::FITS::MODULE::PROPERTIES::ROTATION & rotation_properties);
                     virtual ~COLORANT();
 
                     // public "management" methods.
@@ -63,6 +63,7 @@ namespace FIERY
                     bool ImageTransfer(FIERY::FITS::MODULE::TRANSFER::REQUEST * p_transfer_request);
 
                     // public JOB "management" methods.
+                    bool Abort(void);
                     bool JobCancel(const std::string & job_id);
 
                     // public JOB "helper" methods.
@@ -83,6 +84,7 @@ namespace FIERY
                     bool                                                  m_initialized;
                     FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT               m_output_properties;
                     boost::shared_ptr<FIERY::FITS::OUTPUT::PLUG_IN>       m_p_output_plug_in;
+                    FIERY::FITS::MODULE::PROPERTIES::ROTATION             m_rotation_properties;
                     std::list<FIERY::FITS::MODULE::TRANSFER::REQUEST *>   m_transfer_request_list;
                     std::mutex                                            m_transfer_request_mutex;
                     std::condition_variable                               m_transfer_request_signal;
@@ -94,14 +96,15 @@ namespace FIERY
                 {
                     public:
                     // public static "management" methods.
-                    static bool Start(FIERY::FITS::MODULE::MANAGER * p_module_mgr, const FIERY::FITS::MODULE::PROPERTIES::COLORANT & colorant_properties, const std::string & fits_output_plugin_name);
+                    static bool Start(FIERY::FITS::MODULE::MANAGER * p_module_mgr, const FIERY::FITS::MODULE::PROPERTIES::COLORANT & colorant_properties, const std::string & fits_output_plugin_name, const FIERY::FITS::MODULE::PROPERTIES::ROTATION & rotation_properties);
                     static bool Stop(void);
 
                     // public static IMAGE "management" methods.
                     static bool ImageCreate(const FIERY::FITS::MODULE::PROPERTIES::IMAGE & image_properties, const std::vector<uint8_t> & image_data);
-                    static bool ImageTransfer(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list_valid);
+                    static bool ImageTransfer(const std::string & job_id, const std::string & job_name, const std::string & image_id, const std::list<std::string> & colorant_list_valid, const boost::property_tree::ptree & json_object_settings);
 
                     // public static JOB "management" methods.
+                    static bool Abort(void);
                     static bool IsJobCanceled(const std::string & job_id);
                     static bool JobCancel(const std::string & job_id);
 
@@ -144,7 +147,7 @@ namespace FIERY
                         };
                     };
 
-                    // public constructors and destructor.
+                    // private constructors and destructor.
                     MANAGER();
                     virtual ~MANAGER();
 
@@ -159,7 +162,9 @@ namespace FIERY
                     static std::list<JOB_CANCELED>                           m_job_canceled_list;
                     static std::mutex                                        m_job_canceled_mutex;
                     static FIERY::FITS::OUTPUT::PROPERTIES::OUTPUT           m_output_properties;
+                    static FIERY::FITS::MODULE::MANAGER *                    m_p_module_mgr;
                     static boost::shared_ptr<FIERY::FITS::OUTPUT::PLUG_IN>   m_p_output_plug_in;
+                    static FIERY::FITS::MODULE::PROPERTIES::ROTATION         m_rotation_properties;
                     static FIERY::FITS::MODULE::TRANSFER::MANAGER            m_transfer_mgr;
 
                     // private static "management" constants.

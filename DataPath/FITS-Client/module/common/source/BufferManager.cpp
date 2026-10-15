@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -32,10 +32,10 @@ const uint32_t   MANAGER::SLEEP_IN_MILLISECONDS_CANCEL = 50;
 /**********************************************************************************************************************************************************************************/
 /*                                                                                     methods                                                                                    */
 /**********************************************************************************************************************************************************************************/
-MANAGER::MANAGER(const std::string & colorant, const uint64_t & buffer_pool_size_in_bytes) : m_colorant(colorant), m_buffer_list(), m_initialized(false), m_mutex(),
-            m_p_pool_end(nullptr), m_p_pool_start(nullptr), m_p_pool_window_end(nullptr), m_p_pool_window_start(nullptr), m_pool_size_in_bytes(buffer_pool_size_in_bytes),
-            m_pool_size_in_bytes_available_left_of_window(0), m_pool_size_in_bytes_available_right_of_window(0), m_pool_size_in_bytes_used(0), m_signal_deallocated(),
-            m_throttled(false)
+MANAGER::MANAGER(const std::string & colorant, const uint64_t & buffer_pool_size_in_bytes, const bool & buffer_pool_delayed_allocate) : m_colorant(colorant), m_buffer_list(),
+            m_initialized(false), m_mutex(), m_p_pool_end(nullptr), m_p_pool_start(nullptr), m_p_pool_window_end(nullptr), m_p_pool_window_start(nullptr),
+            m_pool_delayed_allocate(buffer_pool_delayed_allocate), m_pool_size_in_bytes(buffer_pool_size_in_bytes), m_pool_size_in_bytes_available_left_of_window(0),
+            m_pool_size_in_bytes_available_right_of_window(0), m_pool_size_in_bytes_used(0), m_signal_deallocated(), m_throttled(false)
 {
     ;
 }
@@ -82,6 +82,74 @@ MANAGER::~MANAGER()
     FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER POOL DELETED");
 }
 
+bool MANAGER::Abort(void)
+{
+    bool        deallocated  = false;
+    MANAGER *   p_buffer_mgr = this;
+    bool        successful   = false;
+
+
+    FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER ABORT (Length = " + std::to_string(m_buffer_list.size()) + ")");
+
+    // check to see if the BUFFER "list" is "throttled" -- if so, attempt to "signal" the change.
+    if (m_throttled)
+    {
+        m_signal_deallocated.notify_all();
+    }
+
+    // attempt to "sleep" for a bit -- to let outstanding BUFFER "creates" for this JOB to complete.
+    std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLISECONDS_CANCEL));
+
+    // attempt to "take" the BUFFER "mutex".
+    std::lock_guard<std::mutex>   lock(m_mutex);
+
+    // check to see if the BUFFER "list" is "valid".
+    if (!m_buffer_list.empty())
+    {
+        // if so, initialize the local vriables.
+        uint64_t   buffer_list_size_initial = m_buffer_list.size();
+
+        // attempt to "remove" and "deallocate" all BUFFERs.
+        m_buffer_list.remove_if([p_buffer_mgr, &deallocated](auto & entry)
+        {
+            uint64_t    buffer_size_in_bytes = entry.buffer_size_in_bytes;
+
+
+            // attempt to "deallocate" the BUFFER.
+            if (p_buffer_mgr->deallocate(entry))
+            {
+                FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + p_buffer_mgr->m_colorant + "]: BUFFER ABORTED (JobId = " + entry.job_id + "ImageId = " +
+                            entry.image_id + ", Size = (Current = " + std::to_string(buffer_size_in_bytes) + "))");
+
+                // if successful, update the status.
+                deallocated = true;
+            }
+
+            // return the status.
+            return(true);
+        });
+
+        // check to see if we "deallocated" any BUFFERs.
+        if (deallocated)
+        {
+            // if so, attempt to "update" the BUFFER_MANAGER "pool" information.
+            poolUpdate();
+
+            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER ABORTED (Size = (Total = " + std::to_string(m_pool_size_in_bytes_used) + "/" +
+                        std::to_string(m_pool_size_in_bytes) + ", Window = (Left = " + std::to_string(m_pool_size_in_bytes_available_left_of_window) + ", Right = " +
+                        std::to_string(m_pool_size_in_bytes_available_right_of_window) + ")))");
+
+            // attempt to "signal" the change.
+            m_signal_deallocated.notify_all();
+        }
+    }
+
+    FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER ABORTED (Length = " + std::to_string(m_buffer_list.size()) + ")");
+
+    // return the status.
+    return(successful);
+}
+
 bool MANAGER::BufferCreateFromPool(const std::string & job_id, const std::string & image_id, const std::vector<uint8_t> & image_data, BUFFER & buffer)
 {
     uint64_t   buffer_size_in_bytes = image_data.size();
@@ -90,6 +158,31 @@ bool MANAGER::BufferCreateFromPool(const std::string & job_id, const std::string
 
     // attempt to "take" the BUFFER "mutex".
     std::unique_lock<std::mutex>   lock(m_mutex);
+
+    // check to see if the "allocation" of the BUFFER "pool" was "delayed".
+    if (m_pool_delayed_allocate)
+    {
+        // if so, attempt to "allocate" the BUFFER "pool".
+        if (poolAllocate())
+        {
+            // if successful, check to see if the BUFFER_MANAGER "pool" is "valid".
+            if (m_p_pool_start != nullptr)
+            {
+                // if so, update the "management" variables.
+                m_p_pool_end = m_p_pool_start + m_pool_size_in_bytes;
+
+                // attempt to "update" the BUFFER_MANAGER "pool" information.
+                poolUpdate();
+
+                // update the "management" variables.
+                m_pool_delayed_allocate = false;
+            }
+
+            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER POOL CREATED (Size = (Total = " + std::to_string(m_pool_size_in_bytes_used) +
+                "/" + std::to_string(m_pool_size_in_bytes) + ", Window = (Left = " + std::to_string(m_pool_size_in_bytes_available_left_of_window) + ", Right = " +
+                std::to_string(m_pool_size_in_bytes_available_right_of_window) + ")))");
+        }
+    }
 
     // check to see if the BUFFER "size" is "available" in the MANAGER.
     if ((buffer_size_in_bytes > m_pool_size_in_bytes_available_left_of_window) && (buffer_size_in_bytes > m_pool_size_in_bytes_available_right_of_window))
@@ -213,25 +306,34 @@ bool MANAGER::Initialize(void)
     // check to see if we need to "initialize" the BUFFER_MANAGER.
     if (!m_initialized)
     {
-        // attempt to "allocate" the BUFFER "pool".
-        if (poolAllocate())
+        // check to see if the "allocation" of the BUFFER "pool" should be "delayed".
+        if (m_pool_delayed_allocate)
         {
-            // if successful, check to see if the BUFFER_MANAGER "pool" is "valid".
-            if (m_p_pool_start != nullptr)
+            // if so, update the "management" variables.
+            m_initialized = true;
+        }
+        else
+        {
+            // otherwise, attempt to "allocate" the BUFFER "pool".
+            if (poolAllocate())
             {
-                // if so, update the "management" variables.
-                m_p_pool_end = m_p_pool_start + m_pool_size_in_bytes;
+                // if successful, check to see if the BUFFER_MANAGER "pool" is "valid".
+                if (m_p_pool_start != nullptr)
+                {
+                    // if so, update the "management" variables.
+                    m_p_pool_end = m_p_pool_start + m_pool_size_in_bytes;
 
-                // attempt to "update" the BUFFER_MANAGER "pool" information.
-                poolUpdate();
+                    // attempt to "update" the BUFFER_MANAGER "pool" information.
+                    poolUpdate();
 
-                // update the "management" variables.
-                m_initialized = true;
+                    // update the "management" variables.
+                    m_initialized = true;
+                }
+
+                FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER POOL CREATED (Size = (Total = " + std::to_string(m_pool_size_in_bytes_used) +
+                            "/" + std::to_string(m_pool_size_in_bytes) + ", Window = (Left = " + std::to_string(m_pool_size_in_bytes_available_left_of_window) + ", Right = " +
+                            std::to_string(m_pool_size_in_bytes_available_right_of_window) + ")))");
             }
-
-            FIERY::FITS::MODULE::LOG::MANAGER::LogNormal("FITS-Module[" + m_colorant + "]: BUFFER POOL CREATED (Size = (Total = " + std::to_string(m_pool_size_in_bytes_used) +
-                        "/" + std::to_string(m_pool_size_in_bytes) + ", Window = (Left = " + std::to_string(m_pool_size_in_bytes_available_left_of_window) + ", Right = " +
-                        std::to_string(m_pool_size_in_bytes_available_right_of_window) + ")))");
         }
     }
 

@@ -1,6 +1,6 @@
 /**********************************************************************************************************************************************************************************/
 /*                                                                                                                                                                                */
-/*  Copyright (c) 1990-2023 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
+/*  Copyright (c) 1990-2026 Fiery, LLC.  All Rights Reserved.                                                                                                                     */
 /*                                                                                                                                                                                */
 /*  Fiery, LLC ("Fiery") products contain certain trade secrets and confidential and proprietary information of Fiery.  Use, reproduction, disclosure, distribution by any means  */
 /*  are prohibited, except pursuant to a written license from Fiery.  Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works   */
@@ -31,9 +31,9 @@ FITS_MODULE_PLUG_IN::~FITS_MODULE_PLUG_IN()
     ;
 }
 
-bool FITS_MODULE_PLUG_IN::Initialize(const FIERY::FITS::MODULE::LOGGER & logger)
+bool FITS_MODULE_PLUG_IN::Initialize(const FIERY::FITS::MODULE::LOGGER & logger, const std::string & ip_fiery_path_client_override)
 {
-    return(module_mgr.Initialize(logger));
+    return(module_mgr.Initialize(logger, ip_fiery_path_client_override));
 }
 
 bool FITS_MODULE_PLUG_IN::Start(const std::list<std::string> & colorant_list)
