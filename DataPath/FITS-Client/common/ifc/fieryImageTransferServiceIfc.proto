@@ -1,0 +1,98 @@
+/**********************************************************************************************************************************************************************************/
+/*                                                                                                                                                                                */
+/*  (c) Copyright 1990-2023  Electronics for Imaging, Inc. ("EFI").     All Rights Reserved                                                                                       */
+/*                                                                                                                                                                                */
+/*  EFI products contain certain trade secrets and confidential and proprietary information of EFI.  Use, reproduction, disclosure, distribution by any means  are prohibited,    */
+/*  except pursuant to a written license from EFI. Modification, translation, reverse engineering, decompiling, disassembling, and creating derivative works based on this        */
+/*  software are prohibited, except pursuant to a written license from EFI. Use of copyright notice does not imply publication or disclosure.                                     */
+/*                                                                                                                                                                                */
+/*  Restricted Rights Legend:                                                                                                                                                     */
+/*  Use, duplication, or disclosure by the Government is subject to restrictions as set forth in subparagraph (c)(1)(ii) of The Rights in Technical Data and Computer Software    */
+/*  clause in DFARS 252.227-7013 or subparagraphs (c)(1) and (2) of the Commercial Computer Software -- Restricted Rights at 48 CFR 52.227-19, as applicable.                     */
+/*                                                                                                                                                                                */
+/**********************************************************************************************************************************************************************************/
+
+// Protocol definition for Fiery Image Transfer Service (FITS) client/server.
+
+package EFI.FITS.CONSTANT;
+
+// Messages used between FITS client and server. Message with prefix CLIENT_ is initiated by the client, ones with prefix SERVER_ is initiated by the server
+enum MESSAGE_TYPE
+{
+   CLIENT_CONNECTED	=	0;	// Sent by client at startup
+   SERVER_CONFIG	=	1;	// Sent by server in response to CLIENT_CONNECTED
+   SERVER_DATA		=	2;	// Sent by server during printing
+}
+
+enum TAG
+{
+   FITS = 0x70738483;   // "FITS", used to validate socket integrity
+}
+
+enum VERSION
+{
+   VERSION_1 = 1;		// Version information
+}
+
+message COMMON
+{
+   message PORTS
+   {
+      required string	ink		= 1;	// Configured ink name
+      required uint32	port	= 2;	// Port to connect to receive data for this ink
+   }
+
+   message MAPPINGS
+   {
+      required uint32	number_of_inks	= 1;	// Number of inks on this interface
+      repeated PORTS	ink_ports		= 2;	// Ink/port mapping
+   }
+
+   // Dimension used in other messages
+   message DIMENSION
+   {
+      required uint64   x = 1;
+      required uint64   y = 2;
+   }
+
+   // COMMON_HEADER used for all messages
+   message HEADER
+   {
+      required TAG            tag                   = 1;
+      required VERSION        version               = 2;
+      required MESSAGE_TYPE   message_type          = 3;
+      required uint32         message_size_in_bytes = 4;
+   }
+
+   // Contains image data
+   message IMAGE
+   {
+      required string        id                 = 1;	
+      required string        ink                = 2;
+      required uint32        bits_per_pixel     = 3;
+      required uint32        bytes_per_scanline = 4;
+      required DIMENSION     pixels             = 5;
+      required DIMENSION     resolution         = 6;
+      required uint64        size_in_bytes      = 7;
+   }
+
+   // Data for a Job during printing
+   message JOB
+   {
+      required string   id    = 1;
+      required IMAGE    image = 2;
+   }
+}
+
+message MESSAGE
+{
+   message SERVER_CONFIG
+   {
+      required COMMON.MAPPINGS	inks = 1;
+   }
+
+   message SERVER_DATA
+   {
+      required COMMON.JOB		job = 1;
+   }
+}

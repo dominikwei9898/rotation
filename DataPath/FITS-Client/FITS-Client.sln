@@ -1,0 +1,135 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34728.123
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Client", "core\FITS-Client.vcxitems", "{C194056B-3D8A-4075-B5DA-9D41FFF34476}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Client_Linux", "core\linux\FITS-Client_Linux.vcxproj", "{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Client_Windows", "core\windows\FITS-Client_Windows.vcxproj", "{54153590-AE33-44A1-8FCA-E9B195426CF9}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Module", "module\FITS-Module.vcxitems", "{1C3CDB2F-7146-4FDB-B3E5-8274CAE5D9FF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Module_Linux", "module\linux\FITS-Module_Linux.vcxproj", "{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Module_Windows", "module\windows\FITS-Module_Windows.vcxproj", "{75FF1DA2-E279-4E17-9CA5-9138BA31D76F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Raw", "module\output\format-raw\FITS-Output-Raw.vcxitems", "{8C1E3F01-DDA9-4CA3-9BE1-505BC292FE65}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Raw_Linux", "module\output\format-raw\linux\FITS-Output-Raw_Linux.vcxproj", "{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Raw_Windows", "module\output\format-raw\windows\FITS-Output-Raw_Windows.vcxproj", "{416E1498-0685-4B10-AE5B-08316AB5F9A7}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Tiff", "module\output\format-tiff\FITS-Output-Tiff.vcxitems", "{B3B6AB60-D6D2-4BAD-8847-6C2C3EF1C7A4}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Tiff_Linux", "module\output\format-tiff\linux\FITS-Output-Tiff_Linux.vcxproj", "{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Tiff_Windows", "module\output\format-tiff\windows\FITS-Output-Tiff_Windows.vcxproj", "{083B8FA2-80A8-456C-894F-4177BCD22894}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Simulator", "module\output\simulator\FITS-Output-Simulator.vcxitems", "{73C934BE-B3F3-411C-9DC1-09D8F8AF2D03}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Simulator_Linux", "module\output\simulator\linux\FITS-Output-Simulator_Linux.vcxproj", "{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Simulator_Windows", "module\output\simulator\windows\FITS-Output-Simulator_Windows.vcxproj", "{2041728F-DD09-47B8-8861-251F02DE25EA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Prn", "module\output\format-prn\FITS-Output-Prn.vcxitems", "{C0314591-9D4C-4742-8B51-EE513B7AA7F6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Prn_Linux", "module\output\format-prn\linux\FITS-Output-Prn_Linux.vcxproj", "{48E18FA4-F975-4939-8527-1437015E0502}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FITS-Output-Prn_Windows", "module\output\format-prn\windows\FITS-Output-Prn_Windows.vcxproj", "{7BAF2A1E-173F-4267-A6C8-6A87915CC6D7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Debug|x64.ActiveCfg = Debug|x64
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Debug|x64.Build.0 = Debug|x64
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Debug|x64.Deploy.0 = Debug|x64
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Release|x64.ActiveCfg = Release|x64
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Release|x64.Build.0 = Release|x64
+		{840D12F8-99DD-4F8F-9F0A-A77E7A7E9ED3}.Release|x64.Deploy.0 = Release|x64
+		{54153590-AE33-44A1-8FCA-E9B195426CF9}.Debug|x64.ActiveCfg = Debug|x64
+		{54153590-AE33-44A1-8FCA-E9B195426CF9}.Debug|x64.Build.0 = Debug|x64
+		{54153590-AE33-44A1-8FCA-E9B195426CF9}.Release|x64.ActiveCfg = Release|x64
+		{54153590-AE33-44A1-8FCA-E9B195426CF9}.Release|x64.Build.0 = Release|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Debug|x64.ActiveCfg = Debug|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Debug|x64.Build.0 = Debug|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Debug|x64.Deploy.0 = Debug|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Release|x64.ActiveCfg = Release|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Release|x64.Build.0 = Release|x64
+		{C8F40A4A-4AD8-47AF-A96D-21C3CE78143E}.Release|x64.Deploy.0 = Release|x64
+		{75FF1DA2-E279-4E17-9CA5-9138BA31D76F}.Debug|x64.ActiveCfg = Debug|x64
+		{75FF1DA2-E279-4E17-9CA5-9138BA31D76F}.Debug|x64.Build.0 = Debug|x64
+		{75FF1DA2-E279-4E17-9CA5-9138BA31D76F}.Release|x64.ActiveCfg = Release|x64
+		{75FF1DA2-E279-4E17-9CA5-9138BA31D76F}.Release|x64.Build.0 = Release|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Debug|x64.ActiveCfg = Debug|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Debug|x64.Build.0 = Debug|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Debug|x64.Deploy.0 = Debug|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Release|x64.ActiveCfg = Release|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Release|x64.Build.0 = Release|x64
+		{B03F2DCC-6DA9-45DF-88DC-EF87337E9F89}.Release|x64.Deploy.0 = Release|x64
+		{416E1498-0685-4B10-AE5B-08316AB5F9A7}.Debug|x64.ActiveCfg = Debug|x64
+		{416E1498-0685-4B10-AE5B-08316AB5F9A7}.Debug|x64.Build.0 = Debug|x64
+		{416E1498-0685-4B10-AE5B-08316AB5F9A7}.Release|x64.ActiveCfg = Release|x64
+		{416E1498-0685-4B10-AE5B-08316AB5F9A7}.Release|x64.Build.0 = Release|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Debug|x64.ActiveCfg = Debug|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Debug|x64.Build.0 = Debug|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Debug|x64.Deploy.0 = Debug|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Release|x64.ActiveCfg = Release|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Release|x64.Build.0 = Release|x64
+		{9BCB3D88-627D-4E6C-ACA1-83E95A46D82A}.Release|x64.Deploy.0 = Release|x64
+		{083B8FA2-80A8-456C-894F-4177BCD22894}.Debug|x64.ActiveCfg = Debug|x64
+		{083B8FA2-80A8-456C-894F-4177BCD22894}.Debug|x64.Build.0 = Debug|x64
+		{083B8FA2-80A8-456C-894F-4177BCD22894}.Release|x64.ActiveCfg = Release|x64
+		{083B8FA2-80A8-456C-894F-4177BCD22894}.Release|x64.Build.0 = Release|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Debug|x64.ActiveCfg = Debug|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Debug|x64.Build.0 = Debug|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Debug|x64.Deploy.0 = Debug|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Release|x64.ActiveCfg = Release|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Release|x64.Build.0 = Release|x64
+		{7AACBB43-BC00-435E-BC69-72FBE5F6C2D0}.Release|x64.Deploy.0 = Release|x64
+		{2041728F-DD09-47B8-8861-251F02DE25EA}.Debug|x64.ActiveCfg = Debug|x64
+		{2041728F-DD09-47B8-8861-251F02DE25EA}.Debug|x64.Build.0 = Debug|x64
+		{2041728F-DD09-47B8-8861-251F02DE25EA}.Release|x64.ActiveCfg = Release|x64
+		{2041728F-DD09-47B8-8861-251F02DE25EA}.Release|x64.Build.0 = Release|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Debug|x64.ActiveCfg = Debug|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Debug|x64.Build.0 = Debug|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Debug|x64.Deploy.0 = Debug|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Release|x64.ActiveCfg = Release|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Release|x64.Build.0 = Release|x64
+		{48E18FA4-F975-4939-8527-1437015E0502}.Release|x64.Deploy.0 = Release|x64
+		{7BAF2A1E-173F-4267-A6C8-6A87915CC6D7}.Debug|x64.ActiveCfg = Debug|x64
+		{7BAF2A1E-173F-4267-A6C8-6A87915CC6D7}.Debug|x64.Build.0 = Debug|x64
+		{7BAF2A1E-173F-4267-A6C8-6A87915CC6D7}.Release|x64.ActiveCfg = Release|x64
+		{7BAF2A1E-173F-4267-A6C8-6A87915CC6D7}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {57AC8799-97F3-41DC-8DDB-10582FD97D9B}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		module\output\format-tiff\FITS-Output-Tiff.vcxitems*{083b8fa2-80a8-456c-894f-4177bcd22894}*SharedItemsImports = 4
+		module\FITS-Module.vcxitems*{1c3cdb2f-7146-4fdb-b3e5-8274cae5d9ff}*SharedItemsImports = 9
+		module\output\simulator\FITS-Output-Simulator.vcxitems*{2041728f-dd09-47b8-8861-251f02de25ea}*SharedItemsImports = 4
+		module\output\format-raw\FITS-Output-Raw.vcxitems*{416e1498-0685-4b10-ae5b-08316ab5f9a7}*SharedItemsImports = 4
+		module\output\format-prn\FITS-Output-Prn.vcxitems*{48e18fa4-f975-4939-8527-1437015e0502}*SharedItemsImports = 4
+		core\FITS-Client.vcxitems*{54153590-ae33-44a1-8fca-e9b195426cf9}*SharedItemsImports = 4
+		module\output\simulator\FITS-Output-Simulator.vcxitems*{73c934be-b3f3-411c-9dc1-09d8f8af2d03}*SharedItemsImports = 9
+		module\FITS-Module.vcxitems*{75ff1da2-e279-4e17-9ca5-9138ba31d76f}*SharedItemsImports = 4
+		module\output\simulator\FITS-Output-Simulator.vcxitems*{7aacbb43-bc00-435e-bc69-72fbe5f6c2d0}*SharedItemsImports = 4
+		module\output\format-prn\FITS-Output-Prn.vcxitems*{7baf2a1e-173f-4267-a6c8-6a87915cc6d7}*SharedItemsImports = 4
+		core\FITS-Client.vcxitems*{840d12f8-99dd-4f8f-9f0a-a77e7a7e9ed3}*SharedItemsImports = 4
+		module\output\format-raw\FITS-Output-Raw.vcxitems*{8c1e3f01-dda9-4ca3-9be1-505bc292fe65}*SharedItemsImports = 9
+		module\output\format-tiff\FITS-Output-Tiff.vcxitems*{9bcb3d88-627d-4e6c-aca1-83e95a46d82a}*SharedItemsImports = 4
+		module\output\format-raw\FITS-Output-Raw.vcxitems*{b03f2dcc-6da9-45df-88dc-ef87337e9f89}*SharedItemsImports = 4
+		module\output\format-tiff\FITS-Output-Tiff.vcxitems*{b3b6ab60-d6d2-4bad-8847-6c2c3ef1c7a4}*SharedItemsImports = 9
+		module\output\format-prn\FITS-Output-Prn.vcxitems*{c0314591-9d4c-4742-8b51-ee513b7aa7f6}*SharedItemsImports = 9
+		core\FITS-Client.vcxitems*{c194056b-3d8a-4075-b5da-9d41fff34476}*SharedItemsImports = 9
+		module\FITS-Module.vcxitems*{c8f40a4a-4ad8-47af-a96d-21c3ce78143e}*SharedItemsImports = 4
+	EndGlobalSection
+EndGlobal

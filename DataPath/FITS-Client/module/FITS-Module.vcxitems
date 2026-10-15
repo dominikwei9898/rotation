@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{1c3cdb2f-7146-4fdb-b3e5-8274cae5d9ff}</ItemsProjectGuid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\include\FITS-ModuleApi.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\BufferManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ColorantManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\FITS-Module.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\FITS-OutputApi.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ImageManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\LogManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ModuleManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\PropertiesManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\TransferManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\WebSocketManager.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)common\configuration\FITS-Module.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\BufferManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ColorantManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\FITS-Module.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ImageManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\LogManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ModuleManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\TransferManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\WebSocketManager.cpp" />
+  </ItemGroup>
+</Project>

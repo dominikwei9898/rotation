@@ -1,0 +1,32 @@
+{
+  "name": "fierypathtsclient",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.6.2",
+    "@types/request": "^2.48.8",
+    "@types/underscore": "^1.11.9",
+    "@types/ws": "^8.5.5",
+    "@typescript-eslint/eslint-plugin": "^6.7.2",
+    "@typescript-eslint/parser": "^6.7.2",
+    "eslint": "^8.55.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "commander": "^11.0.0",
+    "moment": "2.29.4",
+    "request": "^2.88.2",
+    "underscore": "^1.13.6",
+    "winston": "2.4.4",
+    "ws": "^8.14.2"
+  }
+}

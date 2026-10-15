@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{c194056b-3d8a-4075-b5da-9d41fff34476}</ItemsProjectGuid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\ifc\fieryImageTransferServiceIfc.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\ifc\gen\fieryImageTransferServiceIfc.pb.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\include\FITS-ModuleApi.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ColorantController.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ConfigController.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\LogManager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\SocketController.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\common\ifc\gen\fieryImageTransferServiceIfc.pb.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ColorantController.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ConfigController.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\LogManager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\Main.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\SocketController.cpp" />
+  </ItemGroup>
+</Project>

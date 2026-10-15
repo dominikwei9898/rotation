@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Common Files">
+      <UniqueIdentifier>{ed3660fc-6463-49d8-8960-133ebbc07d28}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\Header Files">
+      <UniqueIdentifier>{2be60129-b0e1-41c9-843d-be8a152d45ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\IFC">
+      <UniqueIdentifier>{27b3c263-6c71-4af6-84a5-bbf75986c9fb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Files\IFC\Gen">
+      <UniqueIdentifier>{2c61386d-851a-4b22-aa74-e8745e9455fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{8c793be1-b72b-4f33-a3be-9233d0dc3211}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{e247c6f7-6869-4e30-9953-bdcb0c3828a3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\include\FITS-ModuleApi.h">
+      <Filter>Common Files\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\ifc\fieryImageTransferServiceIfc.h">
+      <Filter>Common Files\IFC</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\common\ifc\gen\fieryImageTransferServiceIfc.pb.h">
+      <Filter>Common Files\IFC\Gen</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ColorantController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\ConfigController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\LogManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)common\include\SocketController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\common\ifc\gen\fieryImageTransferServiceIfc.pb.cc">
+      <Filter>Common Files\IFC\Gen</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ColorantController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\ConfigController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\LogManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)common\source\SocketController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
